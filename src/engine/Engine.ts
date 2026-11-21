@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import type { PostFxState } from '../types/game';
 
@@ -56,8 +57,8 @@ const CyberpunkPostShader = {
       // Chromatic aberration
       vec2 centerVec = uv - 0.5;
       float distCenter = length(centerVec);
-      float ca = 0.0014 + uChromaticBoost * 0.007 + uSandevistan * 0.0065 + glitchAmt * 0.011;
-      vec2 caOffset = centerVec * ca * (0.6 + distCenter * 1.4);
+      float ca = 0.0012 + uChromaticBoost * 0.0065 + uSandevistan * 0.006 + glitchAmt * 0.01;
+      vec2 caOffset = centerVec * ca * (0.6 + distCenter * 1.3);
 
       float r = texture2D(tDiffuse, clamp(uv + caOffset, 0.001, 0.999)).r;
       float g = texture2D(tDiffuse, clamp(uv, 0.001, 0.999)).g;
@@ -65,14 +66,14 @@ const CyberpunkPostShader = {
       vec3 col = vec3(r, g, b);
 
       // Subtle cyberpunk CRT scanlines
-      float scan = sin(uv.y * 720.0 + uTime * 3.0) * 0.018;
-      col -= scan * (0.4 + glitchAmt * 1.5);
+      float scan = sin(uv.y * 720.0 + uTime * 3.0) * 0.012;
+      col -= scan * (0.35 + glitchAmt * 1.4);
 
       // Sandevistan golden-cyan overdrive grading
       if (uSandevistan > 0.01) {
         vec3 sandyTint = vec3(0.08, 0.92, 1.0);
         float rim = smoothstep(0.25, 0.85, distCenter);
-        col = mix(col, col * vec3(0.88, 1.08, 1.2) + sandyTint * rim * 0.24, uSandevistan * 0.75);
+        col = mix(col, col * vec3(0.9, 1.08, 1.18) + sandyTint * rim * 0.22, uSandevistan * 0.7);
       }
 
       // Soulkiller digital matrix dissolution (red/cyan wireframe & scan grid)
@@ -89,8 +90,8 @@ const CyberpunkPostShader = {
         col = mix(col, vec3(0.75, 0.98, 1.0), surge * 0.85);
       }
 
-      // Crimson trauma / damage vignette
-      float baseVignette = smoothstep(0.48, 0.96, distCenter) * 0.34;
+      // Subtle cinematic vignette + crimson trauma overlay
+      float baseVignette = smoothstep(0.55, 1.0, distCenter) * 0.20;
       col *= (1.0 - baseVignette);
       if (uDamageVignette > 0.01) {
         float dmgMask = smoothstep(0.22, 0.85, distCenter) * uDamageVignette;
@@ -119,7 +120,9 @@ export class Engine {
   readonly renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
   private bloomPass: UnrealBloomPass;
+  private outputPass: OutputPass;
   private postPass: ShaderPass;
+  private envRenderTarget: THREE.WebGLRenderTarget;
   private container: HTMLElement;
   private elapsed = 0;
 
@@ -127,13 +130,18 @@ export class Engine {
     this.container = container;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x05060d);
-    this.scene.fog = new THREE.FogExp2(0x070914, 0.015);
+    this.scene.background = new THREE.Color(0x0b1020);
+    this.scene.fog = new THREE.FogExp2(0x0c1224, 0.01);
 
     const width = Math.max(container.clientWidth, window.innerWidth, 1);
     const height = Math.max(container.clientHeight, window.innerHeight, 1);
 
     this.camera = new THREE.PerspectiveCamera(75, width / height, 0.08, 220);
+
+    // Subtle tactical rim/fill light on Samir so close cover, weapon, and melee targets always stay crisp
+    const cameraFill = new THREE.PointLight(0xaad8ff, 7.5, 18, 1.15);
+    cameraFill.position.set(0, 0.15, 0.2);
+    this.camera.add(cameraFill);
     this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -142,24 +150,70 @@ export class Engine {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(width, height);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.28;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // Post-processing pipeline
+    // Procedural Cyberpunk Neon IBL environment map so metallic floors, gunmetal, and armor reflect rich light
+    this.envRenderTarget = this.createCyberpunkEnvironment();
+    this.scene.environment = this.envRenderTarget.texture;
+    this.scene.environmentIntensity = 0.9;
+
+    // Post-processing pipeline: Render (linear) -> Bloom (HDR linear) -> OutputPass (ACES + sRGB) -> CyberpunkPostShader
     this.composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
 
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.72, 0.45, 0.62);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.52, 0.42, 0.78);
     this.composer.addPass(this.bloomPass);
+
+    this.outputPass = new OutputPass();
+    this.composer.addPass(this.outputPass);
 
     this.postPass = new ShaderPass(CyberpunkPostShader);
     this.composer.addPass(this.postPass);
 
     window.addEventListener('resize', this.handleResize);
+  }
+
+  private createCyberpunkEnvironment(): THREE.WebGLRenderTarget {
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    pmrem.compileEquirectangularShader();
+
+    const envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(0x182238);
+
+    const addPanel = (
+      x: number,
+      y: number,
+      z: number,
+      w: number,
+      h: number,
+      d: number,
+      colorHex: number,
+    ) => {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshBasicMaterial({ color: colorHex }),
+      );
+      m.position.set(x, y, z);
+      envScene.add(m);
+    };
+
+    // Bright overhead softboxes + neon cyan/crimson/gold studio strips
+    addPanel(0, 9, 0, 14, 0.6, 14, 0x9ec8ff);
+    addPanel(-9, 3, 0, 0.6, 5, 14, 0x35e8ff);
+    addPanel(9, 3, 0, 0.6, 5, 14, 0xff3568);
+    addPanel(0, 4, -9, 12, 4, 0.6, 0xffe066);
+    addPanel(0, 4, 9, 12, 4, 0.6, 0x6ba6ff);
+    addPanel(0, -8, 0, 18, 0.6, 18, 0x262e44);
+
+    const rt = pmrem.fromScene(envScene, 0.04);
+    pmrem.dispose();
+    return rt;
   }
 
   private handleResize = (): void => {
@@ -188,12 +242,14 @@ export class Engine {
     u.uEyelids.value = fx.eyelids;
     u.uChromaticBoost.value = fx.chromaticBoost;
 
-    this.bloomPass.strength = 0.68 + fx.soulkiller * 0.75 + fx.sandevistan * 0.25;
+    this.bloomPass.strength = 0.48 + fx.soulkiller * 0.65 + fx.sandevistan * 0.2;
     this.composer.render();
   }
 
   dispose(): void {
     window.removeEventListener('resize', this.handleResize);
+    this.envRenderTarget.dispose();
+    this.outputPass.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement);

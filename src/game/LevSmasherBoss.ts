@@ -168,18 +168,18 @@ export class LevSmasherBoss {
    */
   private buildModel(): void {
     const darkArmor = new THREE.MeshStandardMaterial({
-      color: 0x161820,
-      metalness: 0.88,
-      roughness: 0.28,
+      color: 0x30374a,
+      metalness: 0.62,
+      roughness: 0.32,
     });
     const gunmetal = new THREE.MeshStandardMaterial({
-      color: 0x2c3240,
-      metalness: 0.92,
-      roughness: 0.22,
+      color: 0x546078,
+      metalness: 0.7,
+      roughness: 0.25,
     });
     const crimsonAccent = new THREE.MeshStandardMaterial({
-      color: 0x8a0820,
-      metalness: 0.68,
+      color: 0xb81432,
+      metalness: 0.5,
       roughness: 0.35,
     });
     this.coreMat = new THREE.MeshStandardMaterial({
@@ -286,8 +286,8 @@ export class LevSmasherBoss {
     this.group.add(this.leftArmPivot);
 
     // Point light radiating menacing red aura around Lev Smasher
-    const aura = new THREE.PointLight(0xff003c, 16, 12, 1.6);
-    aura.position.set(0, 2.2, 0.6);
+    const aura = new THREE.PointLight(0xff1a48, 34, 18, 1.15);
+    aura.position.set(0, 2.2, 0.8);
     this.group.add(aura);
 
     this.bodyHitbox.userData = { isBoss: true, isHead: false };

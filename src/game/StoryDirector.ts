@@ -258,7 +258,7 @@ export class StoryDirector {
     this.operatingScene.deactivate();
     this.weapon.clearDroppedWeapon();
     this.level.resetInteractiveState();
-    this.engine.setFogDensity(0.014, 0x070914);
+    this.engine.setFogDensity(0.01, 0x0c1224);
 
     this.player.state.resetFull();
     this.weapon.state.reset();
@@ -444,7 +444,7 @@ export class StoryDirector {
     this.weapon.clearDroppedWeapon();
     this.operatingScene.activate();
 
-    this.engine.setFogDensity(0.032, 0x050912);
+    this.engine.setFogDensity(0.018, 0x0b1322);
     this.player.setOperatingTableAnchor(0, this.operatingScene.originY + 1.68, 0.35);
     this.player.setMode('OPERATING_TABLE');
     this.weapon.setVisible(false);

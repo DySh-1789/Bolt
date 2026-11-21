@@ -31,12 +31,12 @@ export class ProceduralTextures {
     if (existing) return existing;
 
     const [canvas, ctx] = createCanvas(512, 512);
-    ctx.fillStyle = '#090b12';
+    ctx.fillStyle = '#192033';
     ctx.fillRect(0, 0, 512, 512);
 
-    // Subtle brushed dark corporate marble veins
+    // Subtle brushed corporate marble veins
     for (let i = 0; i < 65; i++) {
-      ctx.strokeStyle = `rgba(120, 140, 175, ${0.02 + (i % 4) * 0.012})`;
+      ctx.strokeStyle = `rgba(165, 195, 240, ${0.05 + (i % 4) * 0.02})`;
       ctx.lineWidth = 1 + (i % 3);
       ctx.beginPath();
       const x = (i * 73) % 512;
@@ -46,11 +46,11 @@ export class ProceduralTextures {
     }
 
     // Tile bevels
-    ctx.strokeStyle = '#1b2030';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#313d59';
+    ctx.lineWidth = 5;
     ctx.strokeRect(2, 2, 508, 508);
-    ctx.strokeStyle = '#121622';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#252f47';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(256, 0);
     ctx.lineTo(256, 512);
@@ -60,8 +60,8 @@ export class ProceduralTextures {
 
     // Accent corner node
     ctx.fillStyle = accentColor;
-    ctx.globalAlpha = 0.45;
-    ctx.fillRect(250, 250, 12, 12);
+    ctx.globalAlpha = 0.72;
+    ctx.fillRect(248, 248, 16, 16);
     ctx.globalAlpha = 1;
 
     return this.register(key, canvas, repeatX, repeatY);
@@ -74,17 +74,17 @@ export class ProceduralTextures {
 
     const [canvas, ctx] = createCanvas(512, 512);
     const grad = ctx.createLinearGradient(0, 0, 0, 512);
-    grad.addColorStop(0, '#0f131f');
-    grad.addColorStop(0.5, '#141926');
-    grad.addColorStop(1, '#090c14');
+    grad.addColorStop(0, '#20283d');
+    grad.addColorStop(0.5, '#2b3650');
+    grad.addColorStop(1, '#182032');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 512);
 
     // Metallic armor seams
-    ctx.strokeStyle = '#252d42';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#435275';
+    ctx.lineWidth = 5;
     ctx.strokeRect(12, 12, 488, 488);
-    ctx.strokeStyle = '#07090f';
+    ctx.strokeStyle = '#121826';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(256, 12);
@@ -95,12 +95,12 @@ export class ProceduralTextures {
 
     // Glowing architectural stripe near bottom
     ctx.fillStyle = stripeColor;
-    ctx.fillRect(16, 420, 480, 10);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.fillRect(16, 420, 480, 3);
+    ctx.fillRect(16, 420, 480, 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(16, 420, 480, 4);
 
     // Micro-bolts
-    ctx.fillStyle = '#36415c';
+    ctx.fillStyle = '#5a6c96';
     for (const bx of [28, 240, 272, 484]) {
       for (const by of [28, 354, 484]) {
         ctx.fillRect(bx - 3, by - 3, 6, 6);

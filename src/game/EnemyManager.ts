@@ -54,11 +54,11 @@ const ARCHETYPE_STATS: Record<
   EnemyArchetype,
   { hp: number; speed: number; fireInterval: number; damage: number; visorHex: number; bodyHex: number }
 > = {
-  guard: { hp: 85, speed: 3.3, fireInterval: 1.35, damage: 9, visorHex: 0xff003c, bodyHex: 0x1e2433 },
-  drone: { hp: 65, speed: 4.5, fireInterval: 1.15, damage: 7, visorHex: 0x00f0ff, bodyHex: 0x262d3d },
-  turret: { hp: 110, speed: 0, fireInterval: 0.95, damage: 11, visorHex: 0xff5500, bodyHex: 0x2b2024 },
-  netrunner: { hp: 90, speed: 2.8, fireInterval: 2.1, damage: 8, visorHex: 0x00f0ff, bodyHex: 0x162436 },
-  heavy: { hp: 185, speed: 2.3, fireInterval: 1.25, damage: 14, visorHex: 0xfcee0a, bodyHex: 0x261d22 },
+  guard: { hp: 85, speed: 3.3, fireInterval: 1.35, damage: 9, visorHex: 0xff003c, bodyHex: 0x3b4863 },
+  drone: { hp: 65, speed: 4.5, fireInterval: 1.15, damage: 7, visorHex: 0x00f0ff, bodyHex: 0x4b5c7a },
+  turret: { hp: 110, speed: 0, fireInterval: 0.95, damage: 11, visorHex: 0xff5500, bodyHex: 0x5c3e48 },
+  netrunner: { hp: 90, speed: 2.8, fireInterval: 2.1, damage: 8, visorHex: 0x00f0ff, bodyHex: 0x2f4d70 },
+  heavy: { hp: 185, speed: 2.3, fireInterval: 1.25, damage: 14, visorHex: 0xfcee0a, bodyHex: 0x543c47 },
 };
 
 export class EnemyManager {

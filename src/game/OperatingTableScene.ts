@@ -172,21 +172,25 @@ export class OperatingTableScene {
     this.soulkillerCrown.add(this.soulkillerLasers);
     this.root.add(this.soulkillerCrown);
 
-    // Dramatic sterile spotlight from overhead + ambient cyan/red bounce
-    this.surgicalLight = new THREE.SpotLight(0xdaf6ff, 55, 16, Math.PI / 3, 0.45, 1.3);
-    this.surgicalLight.position.set(0, 5.2, 0.2);
-    this.surgicalLight.target.position.set(0.3, 1.0, -0.6);
+    // Dramatic bright sterile surgical lighting illuminating Rodion, table, and medical monitors
+    this.surgicalLight = new THREE.SpotLight(0xe6f8ff, 95, 22, Math.PI / 2.6, 0.45, 1.0);
+    this.surgicalLight.position.set(0, 5.2, 0.4);
+    this.surgicalLight.target.position.set(0.6, 1.4, -0.9);
     this.root.add(this.surgicalLight, this.surgicalLight.target);
 
-    const rimRed = new THREE.PointLight(0xff003c, 22, 14, 1.5);
-    rimRed.position.set(3.2, 2.6, -3.5);
+    const labFill = new THREE.PointLight(0xc2e6ff, 46, 20, 1.05);
+    labFill.position.set(0, 4.1, 0.8);
+    this.root.add(labFill);
+
+    const rimRed = new THREE.PointLight(0xff2e58, 42, 18, 1.1);
+    rimRed.position.set(3.2, 2.8, -3.2);
     this.root.add(rimRed);
 
-    const rimCyan = new THREE.PointLight(0x00f0ff, 18, 14, 1.5);
-    rimCyan.position.set(-3.2, 2.6, -2.5);
+    const rimCyan = new THREE.PointLight(0x38f4ff, 38, 18, 1.1);
+    rimCyan.position.set(-3.2, 2.8, -2.4);
     this.root.add(rimCyan);
 
-    this.soulkillerLight = new THREE.PointLight(0xff003c, 0, 12, 1.4);
+    this.soulkillerLight = new THREE.PointLight(0xff003c, 0, 16, 1.1);
     this.soulkillerLight.position.set(0, 2.8, 0);
     this.root.add(this.soulkillerLight);
   }
@@ -390,6 +394,6 @@ export class OperatingTableScene {
     }
 
     // Subtle surgical lamp flicker
-    this.surgicalLight.intensity = 52 + Math.sin(elapsed * 11) * (this.soulkillerProgress > 0 ? 18 : 2.5);
+    this.surgicalLight.intensity = 92 + Math.sin(elapsed * 11) * (this.soulkillerProgress > 0 ? 22 : 4);
   }
 }
