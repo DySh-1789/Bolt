@@ -205,45 +205,143 @@
       </div>
     </div>
 
-    <!-- FINALE CREDITS & STATS OVERLAY -->
+    <!-- FINALE MOVIE-STYLE ROLLING CREDITS OVERLAY -->
     <div id="credits-screen" class="overlay-screen credits-screen hidden">
-      <div class="modal-card credits-card">
-        <div class="cyber-badge cyan">ЭНГРАММА СОЗДАНА // ПРОТОКОЛ «ДУШЕГУБ» ЗАВЕРШЁН</div>
-        <h2 class="modal-title">ДУША САМИРА ПОХИЩЕНА</h2>
-        <p class="credits-epilogue">
-          Сознание Самира запечатано в биочипе корпорации Маракулин. Родион одержал победу — но легенды
-          о штурме Маракулин Тавер никогда не умирают.
-        </p>
-        <p id="credits-quote" class="credits-quote hidden"></p>
+      <div id="credits-stage" class="credits-stage">
+        <div id="credits-crawl" class="credits-crawl">
+          <!-- Opening Epilogue & Run Summary -->
+          <div class="credits-hero">
+            <div class="cyber-badge cyan">ЭНГРАММА СОЗДАНА // ПРОТОКОЛ «ДУШЕГУБ» ЗАВЕРШЁН</div>
+            <h1 class="credits-logo">
+              <span class="logo-main">MARAKULIN TOWER</span>
+              <span class="logo-year">2077</span>
+            </h1>
+            <h2 class="credits-subtitle">ДУША САМИРА ПОХИЩЕНА</h2>
+            <p class="credits-epilogue">
+              Сознание Самира запечатано в биочипе корпорации Маракулин. Родион одержал победу — но легенды
+              о штурме Маракулин Тавер никогда не умирают.
+            </p>
+            <p id="credits-quote" class="credits-quote hidden"></p>
 
-        <div class="stats-grid">
-          <div class="stat-item">
-            <span class="stat-label">ВРЕМЯ ШТУРМА</span>
-            <span id="stat-time" class="stat-value">00:00</span>
+            <div class="stats-grid credits-stats">
+              <div class="stat-item">
+                <span class="stat-label">ВРЕМЯ ШТУРМА</span>
+                <span id="stat-time" class="stat-value">00:00</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">УСТРАНЕНО ВРАГОВ</span>
+                <span id="stat-kills" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">ТОЧНОСТЬ</span>
+                <span id="stat-accuracy" class="stat-value">0%</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">ХЕДШОТЫ</span>
+                <span id="stat-headshots" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">УРОН ЛЬВУ СМЭШЕРУ</span>
+                <span id="stat-boss-dmg" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">СТАТУС ОБЪЕКТА</span>
+                <span class="stat-value red">ЭНГРАММА #2077</span>
+              </div>
+            </div>
           </div>
-          <div class="stat-item">
-            <span class="stat-label">УСТРАНЕНО ВРАГОВ</span>
-            <span id="stat-kills" class="stat-value">0</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">ТОЧНОСТЬ</span>
-            <span id="stat-accuracy" class="stat-value">0%</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">ХЕДШОТЫ</span>
-            <span id="stat-headshots" class="stat-value">0</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">УРОН ЛЬВУ СМЭШЕРУ</span>
-            <span id="stat-boss-dmg" class="stat-value">0</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">СТАТУС ОБЪЕКТА</span>
-            <span class="stat-value red">ЭНГРАММА #2077</span>
+
+          <div class="credits-divider"></div>
+
+          <!-- Movie Credits Sections -->
+          <section class="credits-section">
+            <h3 class="credits-section-title">ГЕЙМДИЗАЙН И НАРРАТИВ</h3>
+            <ul class="credits-list">
+              <li><span class="credit-role">Креативный директор / Гейм-директор</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Геймдизайнер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Системный дизайнер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Левел-дизайнер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">UI/UX-дизайнер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Дизайнер монетизации</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Нарративный дизайнер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Сценарист</span><span class="credit-dash">—</span><span class="credit-name highlight">DySh</span></li>
+            </ul>
+          </section>
+
+          <section class="credits-section">
+            <h3 class="credits-section-title">АРТ, АНИМАЦИЯ И АУДИО</h3>
+            <ul class="credits-list">
+              <li><span class="credit-role">Арт-директор</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Концепт-художник</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">2D-художник</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">3D-художник</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Художник по персонажам</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Художник по окружению</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Художник по предметам</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Аниматор</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Риггер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">VFX-художник</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Художник по свету</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Технический художник</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Саунд-дизайнер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Композитор</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+            </ul>
+          </section>
+
+          <section class="credits-section">
+            <h3 class="credits-section-title">ПРОГРАММИРОВАНИЕ И ТЕСТИРОВАНИЕ</h3>
+            <ul class="credits-list">
+              <li><span class="credit-role">Геймплей-программист</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Программист движка и графики</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Сетевой программист</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Бэкенд-программист</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">AI-программист</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Программист инструментов</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">QA-инженер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">LQA-инженер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+            </ul>
+          </section>
+
+          <section class="credits-section">
+            <h3 class="credits-section-title">МЕНЕДЖМЕНТ, АНАЛИТИКА И МАРКЕТИНГ</h3>
+            <ul class="credits-list">
+              <li><span class="credit-role">Продюсер / Проджект-менеджер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Продакт-менеджер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Игровой аналитик</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">LiveOps-менеджер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Локализатор</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Маркетолог</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">PR-менеджер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+              <li><span class="credit-role">Комьюнити-менеджер</span><span class="credit-dash">—</span><span class="credit-name">Antigravity</span></li>
+            </ul>
+          </section>
+
+          <section class="credits-section special-team">
+            <h3 class="credits-section-title">ОСОБАЯ КОМАНДА</h3>
+            <ul class="credits-list">
+              <li><span class="credit-role">Владелец репозитория</span><span class="credit-dash">—</span><span class="credit-name highlight">DySh</span></li>
+              <li><span class="credit-role">Промпт-инженер</span><span class="credit-dash">—</span><span class="credit-name highlight">DySh</span></li>
+              <li><span class="credit-role">Тестировщик</span><span class="credit-dash">—</span><span class="credit-name highlight">DySh</span></li>
+            </ul>
+          </section>
+
+          <!-- Final Cinema End Card -->
+          <div id="credits-finale" class="credits-finale">
+            <div class="credits-divider"></div>
+            <div class="credits-end-badge">MARAKULIN TOWER // 2077</div>
+            <div class="credits-thanks">СПАСИБО ЗА ИГРУ</div>
+            <button id="btn-replay" class="cyber-btn primary credits-replay-btn">
+              ПОВТОРИТЬ ШТУРМ МАРАКУЛИН ТАВЕР
+            </button>
           </div>
         </div>
+      </div>
 
-        <button id="btn-replay" class="cyber-btn primary">ПОВТОРИТЬ ШТУРМ МАРАКУЛИН ТАВЕР</button>
+      <!-- Cinema Controls Bar -->
+      <div class="credits-controls">
+        <span class="credits-hint">Удерживайте <kbd>SPACE</kbd> для ускорения</span>
+        <button id="btn-credits-speed" class="credits-ctrl-btn">УСКОРИТЬ 3x</button>
+        <button id="btn-credits-skip" class="credits-ctrl-btn accent">ПРОПУСТИТЬ</button>
       </div>
     </div>
 

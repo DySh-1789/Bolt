@@ -47,7 +47,11 @@ export class HUD {
   private pauseScreen: HTMLElement;
   private deathScreen: HTMLElement;
   private creditsScreen: HTMLElement;
+  private creditsStage: HTMLElement;
+  private creditsCrawl: HTMLElement;
+  private creditsFinale: HTMLElement;
   private creditsQuote: HTMLElement;
+  private btnCreditsSpeed: HTMLElement;
 
   private hpFill: HTMLElement;
   private hpValue: HTMLElement;
@@ -95,6 +99,10 @@ export class HUD {
 
   private hitmarkerTimer = 0;
   private activeSubtitleTimer = 0;
+  private creditsY = 0;
+  private creditsFastToggle = false;
+  private creditsFastHold = false;
+  private creditsRunning = false;
   private callbacks: HudCallbacks;
   private cleanups: Array<() => void> = [];
 
@@ -107,7 +115,11 @@ export class HUD {
     this.pauseScreen = this.el('pause-screen');
     this.deathScreen = this.el('death-screen');
     this.creditsScreen = this.el('credits-screen');
+    this.creditsStage = this.el('credits-stage');
+    this.creditsCrawl = this.el('credits-crawl');
+    this.creditsFinale = this.el('credits-finale');
     this.creditsQuote = this.el('credits-quote');
+    this.btnCreditsSpeed = this.el('btn-credits-speed');
 
     this.hpFill = this.el('hp-fill');
     this.hpValue = this.el('hp-value');
@@ -162,7 +174,7 @@ export class HUD {
     return node;
   }
 
-  private addListener(target: HTMLElement, type: string, handler: EventListener): void {
+  private addListener(target: EventTarget, type: string, handler: EventListener): void {
     target.addEventListener(type, handler);
     this.cleanups.push(() => target.removeEventListener(type, handler));
   }
@@ -173,6 +185,36 @@ export class HUD {
     this.addListener(this.el('btn-restart'), 'click', () => this.callbacks.onRestartGame());
     this.addListener(this.el('btn-retry'), 'click', () => this.callbacks.onRetryCheckpoint());
     this.addListener(this.el('btn-replay'), 'click', () => this.callbacks.onRestartGame());
+
+    this.addListener(this.btnCreditsSpeed, 'click', () => {
+      this.creditsFastToggle = !this.creditsFastToggle;
+      this.syncCreditsSpeedButton();
+    });
+    this.addListener(this.el('btn-credits-skip'), 'click', () => this.skipCreditsToFinale());
+
+    this.addListener(window, 'keydown', (e) => {
+      const ke = e as KeyboardEvent;
+      if (!this.creditsRunning) return;
+      if (ke.code === 'Space' || ke.code === 'ArrowDown') {
+        this.creditsFastHold = true;
+        this.syncCreditsSpeedButton();
+        ke.preventDefault();
+      }
+    });
+    this.addListener(window, 'keyup', (e) => {
+      const ke = e as KeyboardEvent;
+      if (ke.code === 'Space' || ke.code === 'ArrowDown') {
+        this.creditsFastHold = false;
+        this.syncCreditsSpeedButton();
+      }
+    });
+    this.addListener(this.creditsStage, 'wheel', (e) => {
+      if (!this.creditsRunning) return;
+      const we = e as WheelEvent;
+      this.creditsY -= we.deltaY * 0.7;
+      this.clampCreditsPosition();
+      this.applyCreditsTransform();
+    });
 
     const sensSlider = this.el('slider-sens') as HTMLInputElement;
     const sensVal = this.el('sens-val');
@@ -191,12 +233,67 @@ export class HUD {
     });
   }
 
+  private syncCreditsSpeedButton(): void {
+    const fast = this.creditsFastToggle || this.creditsFastHold;
+    this.btnCreditsSpeed.classList.toggle('active', fast);
+    this.btnCreditsSpeed.textContent = fast ? 'СКОРОСТЬ 3x' : 'УСКОРИТЬ 3x';
+  }
+
+  private getCreditsStopY(): number {
+    const stageH = this.creditsStage.clientHeight || window.innerHeight || 720;
+    const finaleTop = this.creditsFinale.offsetTop;
+    const finaleH = this.creditsFinale.offsetHeight || 220;
+    return stageH * 0.5 - (finaleTop + finaleH * 0.5);
+  }
+
+  private clampCreditsPosition(): void {
+    const stageH = this.creditsStage.clientHeight || window.innerHeight || 720;
+    const stopY = this.getCreditsStopY();
+    this.creditsY = Math.max(stopY, Math.min(stageH + 40, this.creditsY));
+  }
+
+  private applyCreditsTransform(): void {
+    this.creditsCrawl.style.transform = `translate3d(0, ${this.creditsY}px, 0)`;
+  }
+
+  startCreditsRoll(): void {
+    const stageH = this.creditsStage.clientHeight || window.innerHeight || 720;
+    this.creditsRunning = true;
+    this.creditsFastToggle = false;
+    this.creditsFastHold = false;
+    this.syncCreditsSpeedButton();
+    // Start hero block right at the lower edge of the cinema viewport
+    this.creditsY = stageH * 0.88;
+    this.applyCreditsTransform();
+  }
+
+  skipCreditsToFinale(): void {
+    this.creditsY = this.getCreditsStopY();
+    this.applyCreditsTransform();
+  }
+
+  updateCredits(dt: number): void {
+    if (!this.creditsRunning) return;
+    const stopY = this.getCreditsStopY();
+    if (this.creditsY > stopY) {
+      const speed = this.creditsFastToggle || this.creditsFastHold ? 210 : 58;
+      this.creditsY = Math.max(stopY, this.creditsY - speed * dt);
+      this.applyCreditsTransform();
+    }
+  }
+
   showScreen(screen: 'title' | 'playing' | 'pause' | 'death' | 'credits'): void {
     this.titleScreen.classList.toggle('hidden', screen !== 'title');
     this.pauseScreen.classList.toggle('hidden', screen !== 'pause');
     this.deathScreen.classList.toggle('hidden', screen !== 'death');
     this.creditsScreen.classList.toggle('hidden', screen !== 'credits');
     this.rootHud.classList.toggle('hidden', screen === 'title' || screen === 'credits');
+    if (screen === 'credits') {
+      this.startCreditsRoll();
+    } else {
+      this.creditsRunning = false;
+      this.creditsFastHold = false;
+    }
   }
 
   setCombatHudVisible(visible: boolean): void {

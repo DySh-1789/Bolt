@@ -857,7 +857,13 @@ export class StoryDirector {
       return;
     }
 
-    if (this.paused || this.dead || this.story.act === 'CREDITS') {
+    if (this.story.act === 'CREDITS') {
+      this.hud.updateCredits(dt);
+      this.engine.render(dt, this.fx);
+      return;
+    }
+
+    if (this.paused || this.dead) {
       this.engine.render(dt, this.fx);
       return;
     }
