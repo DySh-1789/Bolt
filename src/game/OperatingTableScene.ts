@@ -36,18 +36,18 @@ export class OperatingTableScene {
   private buildLab(): void {
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#00f0ff', 4, 4),
-      metalness: 0.45,
-      roughness: 0.25,
+      metalness: 0.2,
+      roughness: 0.58,
     });
     const wallMat = new THREE.MeshStandardMaterial({
       map: this.textures.getWallPanel('#ff003c', 3, 2),
-      metalness: 0.6,
-      roughness: 0.35,
+      metalness: 0.22,
+      roughness: 0.64,
     });
     const steelMat = new THREE.MeshStandardMaterial({
       color: 0x3b4456,
-      metalness: 0.88,
-      roughness: 0.2,
+      metalness: 0.55,
+      roughness: 0.42,
     });
 
     // Enclosed sterile dark-cyberpunk operating chamber (14 x 6.5 x 14)
@@ -172,25 +172,25 @@ export class OperatingTableScene {
     this.soulkillerCrown.add(this.soulkillerLasers);
     this.root.add(this.soulkillerCrown);
 
-    // Dramatic bright sterile surgical lighting illuminating Rodion, table, and medical monitors
-    this.surgicalLight = new THREE.SpotLight(0xe6f8ff, 95, 22, Math.PI / 2.6, 0.45, 1.0);
+    // Balanced sterile surgical lighting illuminating Rodion, table, and medical monitors without glare
+    this.surgicalLight = new THREE.SpotLight(0xd8eefc, 34, 18, Math.PI / 2.6, 0.55, 1.45);
     this.surgicalLight.position.set(0, 5.2, 0.4);
     this.surgicalLight.target.position.set(0.6, 1.4, -0.9);
     this.root.add(this.surgicalLight, this.surgicalLight.target);
 
-    const labFill = new THREE.PointLight(0xc2e6ff, 46, 20, 1.05);
+    const labFill = new THREE.PointLight(0xaacbe8, 12, 16, 1.5);
     labFill.position.set(0, 4.1, 0.8);
     this.root.add(labFill);
 
-    const rimRed = new THREE.PointLight(0xff2e58, 42, 18, 1.1);
+    const rimRed = new THREE.PointLight(0xff2e58, 14, 15, 1.5);
     rimRed.position.set(3.2, 2.8, -3.2);
     this.root.add(rimRed);
 
-    const rimCyan = new THREE.PointLight(0x38f4ff, 38, 18, 1.1);
+    const rimCyan = new THREE.PointLight(0x38e4f5, 12, 15, 1.5);
     rimCyan.position.set(-3.2, 2.8, -2.4);
     this.root.add(rimCyan);
 
-    this.soulkillerLight = new THREE.PointLight(0xff003c, 0, 16, 1.1);
+    this.soulkillerLight = new THREE.PointLight(0xff003c, 0, 14, 1.45);
     this.soulkillerLight.position.set(0, 2.8, 0);
     this.root.add(this.soulkillerLight);
   }
@@ -358,7 +358,7 @@ export class OperatingTableScene {
     this.soulkillerProgress = Math.max(0, Math.min(1, progress));
     this.soulkillerLasers.visible = this.soulkillerProgress > 0.02;
     this.soulkillerCrown.position.y = THREE.MathUtils.lerp(4.4, 2.75, Math.min(1, this.soulkillerProgress * 1.4));
-    this.soulkillerLight.intensity = this.soulkillerProgress * 55;
+    this.soulkillerLight.intensity = this.soulkillerProgress * 26;
     (this.particlePoints.material as THREE.PointsMaterial).opacity = Math.min(0.95, this.soulkillerProgress * 1.25);
   }
 
@@ -394,6 +394,6 @@ export class OperatingTableScene {
     }
 
     // Subtle surgical lamp flicker
-    this.surgicalLight.intensity = 92 + Math.sin(elapsed * 11) * (this.soulkillerProgress > 0 ? 22 : 4);
+    this.surgicalLight.intensity = 34 + Math.sin(elapsed * 11) * (this.soulkillerProgress > 0 ? 10 : 2);
   }
 }

@@ -138,8 +138,8 @@ export class Engine {
 
     this.camera = new THREE.PerspectiveCamera(75, width / height, 0.08, 220);
 
-    // Subtle tactical rim/fill light on Samir so close cover, weapon, and melee targets always stay crisp
-    const cameraFill = new THREE.PointLight(0xaad8ff, 7.5, 18, 1.15);
+    // Subtle tactical rim/fill light on Samir without creating bright wall hotspots
+    const cameraFill = new THREE.PointLight(0x9ec4e8, 1.8, 10, 1.6);
     cameraFill.position.set(0, 0.15, 0.2);
     this.camera.add(cameraFill);
     this.scene.add(this.camera);
@@ -152,22 +152,22 @@ export class Engine {
     this.renderer.setSize(width, height);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.28;
+    this.renderer.toneMappingExposure = 0.96;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // Procedural Cyberpunk Neon IBL environment map so metallic floors, gunmetal, and armor reflect rich light
+    // Subtle Cyberpunk Neon IBL environment map for controlled metallic highlights
     this.envRenderTarget = this.createCyberpunkEnvironment();
     this.scene.environment = this.envRenderTarget.texture;
-    this.scene.environmentIntensity = 0.9;
+    this.scene.environmentIntensity = 0.36;
 
     // Post-processing pipeline: Render (linear) -> Bloom (HDR linear) -> OutputPass (ACES + sRGB) -> CyberpunkPostShader
     this.composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
 
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.52, 0.42, 0.78);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.32, 0.35, 0.94);
     this.composer.addPass(this.bloomPass);
 
     this.outputPass = new OutputPass();
@@ -184,7 +184,7 @@ export class Engine {
     pmrem.compileEquirectangularShader();
 
     const envScene = new THREE.Scene();
-    envScene.background = new THREE.Color(0x182238);
+    envScene.background = new THREE.Color(0x0c111e);
 
     const addPanel = (
       x: number,
@@ -203,15 +203,15 @@ export class Engine {
       envScene.add(m);
     };
 
-    // Bright overhead softboxes + neon cyan/crimson/gold studio strips
-    addPanel(0, 9, 0, 14, 0.6, 14, 0x9ec8ff);
-    addPanel(-9, 3, 0, 0.6, 5, 14, 0x35e8ff);
-    addPanel(9, 3, 0, 0.6, 5, 14, 0xff3568);
-    addPanel(0, 4, -9, 12, 4, 0.6, 0xffe066);
-    addPanel(0, 4, 9, 12, 4, 0.6, 0x6ba6ff);
-    addPanel(0, -8, 0, 18, 0.6, 18, 0x262e44);
+    // Soft studio reflection panels so chrome/armor has depth without harsh specular glare
+    addPanel(0, 9, 0, 12, 0.5, 12, 0x455c82);
+    addPanel(-9, 3, 0, 0.5, 4, 12, 0x166d80);
+    addPanel(9, 3, 0, 0.5, 4, 12, 0x7a1632);
+    addPanel(0, 4, -9, 10, 3, 0.5, 0x73632a);
+    addPanel(0, 4, 9, 10, 3, 0.5, 0x2c4870);
+    addPanel(0, -8, 0, 16, 0.5, 16, 0x131824);
 
-    const rt = pmrem.fromScene(envScene, 0.04);
+    const rt = pmrem.fromScene(envScene, 0.06);
     pmrem.dispose();
     return rt;
   }
@@ -242,7 +242,7 @@ export class Engine {
     u.uEyelids.value = fx.eyelids;
     u.uChromaticBoost.value = fx.chromaticBoost;
 
-    this.bloomPass.strength = 0.48 + fx.soulkiller * 0.65 + fx.sandevistan * 0.2;
+    this.bloomPass.strength = 0.30 + fx.soulkiller * 0.55 + fx.sandevistan * 0.16;
     this.composer.render();
   }
 

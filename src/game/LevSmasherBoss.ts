@@ -286,7 +286,7 @@ export class LevSmasherBoss {
     this.group.add(this.leftArmPivot);
 
     // Point light radiating menacing red aura around Lev Smasher
-    const aura = new THREE.PointLight(0xff1a48, 34, 18, 1.15);
+    const aura = new THREE.PointLight(0xff1a48, 14, 14, 1.5);
     aura.position.set(0, 2.2, 0.8);
     this.group.add(aura);
 

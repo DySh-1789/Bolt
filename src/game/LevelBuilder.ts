@@ -51,14 +51,14 @@ export class LevelBuilder {
   }
 
   build(): void {
-    // Rich global architectural fill so cyberpunk interiors stay vibrant and clearly readable
-    const hemi = new THREE.HemisphereLight(0x90b8ff, 0x3c2238, 1.35);
+    // Balanced atmospheric fill so rooms are readable without washing out shadows
+    const hemi = new THREE.HemisphereLight(0x6e8ec4, 0x261626, 0.68);
     this.root.add(hemi);
 
-    const ambient = new THREE.AmbientLight(0x4b5e85, 0.58);
+    const ambient = new THREE.AmbientLight(0x303e5c, 0.30);
     this.root.add(ambient);
 
-    const keyDir = new THREE.DirectionalLight(0xd4e8ff, 1.05);
+    const keyDir = new THREE.DirectionalLight(0xa8c4eb, 0.45);
     keyDir.position.set(14, 28, 12);
     this.root.add(keyDir);
 
@@ -100,13 +100,13 @@ export class LevelBuilder {
     sy: number,
     sz: number,
     colorHex: number,
-    intensity = 2.6,
+    intensity = 1.65,
   ): THREE.Mesh {
     const mat = new THREE.MeshStandardMaterial({
       color: colorHex,
       emissive: colorHex,
-      emissiveIntensity: intensity,
-      roughness: 0.2,
+      emissiveIntensity: Math.min(intensity, 1.85),
+      roughness: 0.35,
     });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
     mesh.position.set(cx, cy, cz);
@@ -127,8 +127,8 @@ export class LevelBuilder {
       map: texture,
       emissiveMap: texture,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.95,
-      roughness: 0.25,
+      emissiveIntensity: 0.72,
+      roughness: 0.45,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
     mesh.position.set(x, y, z);
@@ -235,18 +235,18 @@ export class LevelBuilder {
   private buildAtrium(): void {
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#ff003c', 8, 11),
-      metalness: 0.35,
-      roughness: 0.36,
+      metalness: 0.2,
+      roughness: 0.58,
     });
     const wallMat = new THREE.MeshStandardMaterial({
       map: this.textures.getWallPanel('#ff003c', 6, 2),
-      metalness: 0.38,
-      roughness: 0.44,
+      metalness: 0.22,
+      roughness: 0.64,
     });
     const darkMarble = new THREE.MeshStandardMaterial({
-      color: 0x263047,
-      metalness: 0.45,
-      roughness: 0.32,
+      color: 0x222b3f,
+      metalness: 0.25,
+      roughness: 0.55,
     });
 
     // Floor & ceiling
@@ -258,7 +258,7 @@ export class LevelBuilder {
 
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(32, 46),
-      new THREE.MeshStandardMaterial({ color: 0x151b2b, roughness: 0.78 }),
+      new THREE.MeshStandardMaterial({ color: 0x111624, roughness: 0.85 }),
     );
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, 11, -5);
@@ -307,7 +307,7 @@ export class LevelBuilder {
 
     // Central dais + rotating holographic corporate monument
     this.addBoxMeshAndCollider('atrium_dais', 0, 0.75, -4, 4.2, 1.5, 4.2, darkMarble, true, false);
-    this.addNeonStrip(0, 1.52, -4, 4.35, 0.08, 4.35, 0xff003c, 2.4);
+    this.addNeonStrip(0, 1.52, -4, 4.35, 0.08, 4.35, 0xff003c, 1.6);
 
     const holoGroup = new THREE.Group();
     holoGroup.position.set(0, 4.3, -4);
@@ -337,8 +337,8 @@ export class LevelBuilder {
     for (const cz of colZ) {
       for (const cx of [-9.5, 9.5]) {
         this.addBoxMeshAndCollider(`atrium_col_${cx}_${cz}`, cx, 5.5, cz, 2.2, 11, 2.2, darkMarble);
-        this.addNeonStrip(cx, 5.5, cz + 1.12, 0.16, 10.2, 0.08, 0xff003c, 2.2);
-        this.addNeonStrip(cx, 5.5, cz - 1.12, 0.16, 10.2, 0.08, 0x00f0ff, 1.8);
+        this.addNeonStrip(cx, 5.5, cz + 1.12, 0.16, 10.2, 0.08, 0xff003c, 1.6);
+        this.addNeonStrip(cx, 5.5, cz - 1.12, 0.16, 10.2, 0.08, 0x00f0ff, 1.4);
       }
     }
 
@@ -352,14 +352,14 @@ export class LevelBuilder {
     ];
     for (const [id, x, z, w, d] of atriumCovers) {
       this.addBoxMeshAndCollider(id, x, 0.65, z, w, 1.3, d, darkMarble, true, false);
-      this.addNeonStrip(x, 1.32, z, w + 0.06, 0.06, d + 0.06, 0x00f0ff, 1.6);
+      this.addNeonStrip(x, 1.32, z, w + 0.06, 0.06, d + 0.06, 0x00f0ff, 1.3);
     }
 
-    // Bright overhead cyberpunk neon trusses & wide-throw architectural lights
+    // Balanced overhead cyberpunk neon trusses & lights (no glare hotspots)
     for (const lz of [12, 2, -8, -19]) {
       const isCrimson = lz === -8;
-      this.addNeonStrip(0, 10.7, lz, 24, 0.18, 0.35, isCrimson ? 0xff003c : 0x00f0ff, 2.0);
-      const pt = new THREE.PointLight(isCrimson ? 0xff4d72 : 0x7ce4ff, isCrimson ? 70 : 80, 42, 1.1);
+      this.addNeonStrip(0, 10.7, lz, 24, 0.18, 0.35, isCrimson ? 0xff003c : 0x00f0ff, 1.5);
+      const pt = new THREE.PointLight(isCrimson ? 0xff3b62 : 0x64d6f5, isCrimson ? 24 : 26, 30, 1.55);
       pt.position.set(0, 8.6, lz);
       this.root.add(pt);
       if (isCrimson) this.alarmLights.push(pt);
@@ -372,13 +372,13 @@ export class LevelBuilder {
   private buildConnector1(): void {
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#00f0ff', 2, 3),
-      metalness: 0.35,
-      roughness: 0.36,
+      metalness: 0.2,
+      roughness: 0.58,
     });
     const wallMat = new THREE.MeshStandardMaterial({
       map: this.textures.getWallPanel('#00f0ff', 2, 1),
-      metalness: 0.4,
-      roughness: 0.4,
+      metalness: 0.22,
+      roughness: 0.64,
     });
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 10.4), floorMat);
@@ -388,7 +388,7 @@ export class LevelBuilder {
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(7.6, 10.4),
-      new THREE.MeshStandardMaterial({ color: 0x161d2e }),
+      new THREE.MeshStandardMaterial({ color: 0x111624, roughness: 0.85 }),
     );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, 5.4, -33);
@@ -396,9 +396,9 @@ export class LevelBuilder {
 
     this.addBoxMeshAndCollider('conn1_w', -4.1, 2.7, -33, 0.8, 5.4, 10.4, wallMat);
     this.addBoxMeshAndCollider('conn1_e', 4.1, 2.7, -33, 0.8, 5.4, 10.4, wallMat);
-    this.addNeonStrip(0, 5.2, -33, 0.25, 0.12, 9.6, 0x00f0ff, 2.4);
+    this.addNeonStrip(0, 5.2, -33, 0.25, 0.12, 9.6, 0x00f0ff, 1.5);
 
-    const pt = new THREE.PointLight(0x66ebff, 48, 24, 1.1);
+    const pt = new THREE.PointLight(0x5edbf5, 16, 18, 1.5);
     pt.position.set(0, 4.4, -33);
     this.root.add(pt);
   }
@@ -409,21 +409,21 @@ export class LevelBuilder {
   private buildServerRoom(): void {
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#00f0ff', 7, 10),
-      metalness: 0.35,
-      roughness: 0.36,
+      metalness: 0.2,
+      roughness: 0.58,
     });
     const wallMat = new THREE.MeshStandardMaterial({
       map: this.textures.getWallPanel('#00f0ff', 6, 2),
-      metalness: 0.38,
-      roughness: 0.42,
+      metalness: 0.22,
+      roughness: 0.64,
     });
     const rackMat = new THREE.MeshStandardMaterial({
       map: this.textures.getServerRack(),
       emissiveMap: this.textures.getServerRack(),
       emissive: new THREE.Color(0x99ccff),
-      emissiveIntensity: 0.85,
-      metalness: 0.45,
-      roughness: 0.34,
+      emissiveIntensity: 0.62,
+      metalness: 0.28,
+      roughness: 0.52,
     });
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(28, 42), floorMat);
@@ -434,7 +434,7 @@ export class LevelBuilder {
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(28, 42),
-      new THREE.MeshStandardMaterial({ color: 0x131a2c }),
+      new THREE.MeshStandardMaterial({ color: 0x101624, roughness: 0.85 }),
     );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, 8, -59);
@@ -477,7 +477,7 @@ export class LevelBuilder {
     ];
     rackCoords.forEach(([rx, rz], idx) => {
       this.addBoxMeshAndCollider(`srv_rack_${idx}`, rx, 2.1, rz, 2.4, 4.2, 2.4, rackMat);
-      this.addNeonStrip(rx, 4.25, rz, 2.45, 0.08, 2.45, idx % 2 === 0 ? 0x00f0ff : 0xff003c, 1.8);
+      this.addNeonStrip(rx, 4.25, rz, 2.45, 0.08, 2.45, idx % 2 === 0 ? 0x00f0ff : 0xff003c, 1.4);
     });
 
     // Laser security barrier blocking exit until hacked
@@ -485,7 +485,7 @@ export class LevelBuilder {
     const beamMat = new THREE.MeshStandardMaterial({
       color: 0xff003c,
       emissive: 0xff003c,
-      emissiveIntensity: 3.4,
+      emissiveIntensity: 2.2,
       transparent: true,
       opacity: 0.85,
     });
@@ -514,7 +514,7 @@ export class LevelBuilder {
     const termGroup = new THREE.Group();
     const ped = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, 1.35, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x2a3650, metalness: 0.55, roughness: 0.3 }),
+      new THREE.MeshStandardMaterial({ color: 0x263147, metalness: 0.35, roughness: 0.5 }),
     );
     ped.position.y = 0.675;
     termGroup.add(ped);
@@ -523,7 +523,7 @@ export class LevelBuilder {
       new THREE.MeshStandardMaterial({
         color: 0x00f0ff,
         emissive: 0x00f0ff,
-        emissiveIntensity: 2.2,
+        emissiveIntensity: 1.7,
       }),
     );
     screen.position.set(0, 1.5, 0.35);
@@ -548,8 +548,8 @@ export class LevelBuilder {
 
     // Sector 2 lights
     for (const lz of [-44, -54, -64, -74]) {
-      this.addNeonStrip(0, 7.75, lz, 20, 0.14, 0.28, lz === -74 ? 0xff003c : 0x00f0ff, 2.0);
-      const pt = new THREE.PointLight(lz === -74 ? 0xff4d72 : 0x62e6ff, 68, 36, 1.1);
+      this.addNeonStrip(0, 7.75, lz, 20, 0.14, 0.28, lz === -74 ? 0xff003c : 0x00f0ff, 1.5);
+      const pt = new THREE.PointLight(lz === -74 ? 0xff3b62 : 0x56d8f2, 22, 28, 1.55);
       pt.position.set(0, 6.4, lz);
       this.root.add(pt);
     }
@@ -561,13 +561,13 @@ export class LevelBuilder {
   private buildConnector2(): void {
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#fcee0a', 2, 3),
-      metalness: 0.35,
-      roughness: 0.35,
+      metalness: 0.2,
+      roughness: 0.58,
     });
     const wallMat = new THREE.MeshStandardMaterial({
       map: this.textures.getWallPanel('#fcee0a', 2, 1),
-      metalness: 0.4,
-      roughness: 0.38,
+      metalness: 0.22,
+      roughness: 0.64,
     });
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 10.4), floorMat);
@@ -577,7 +577,7 @@ export class LevelBuilder {
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(8.4, 10.4),
-      new THREE.MeshStandardMaterial({ color: 0x151b2b }),
+      new THREE.MeshStandardMaterial({ color: 0x111624, roughness: 0.85 }),
     );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, 6.2, -85);
@@ -585,9 +585,9 @@ export class LevelBuilder {
 
     this.addBoxMeshAndCollider('conn2_w', -4.5, 3.1, -85, 0.8, 6.2, 10.4, wallMat);
     this.addBoxMeshAndCollider('conn2_e', 4.5, 3.1, -85, 0.8, 6.2, 10.4, wallMat);
-    this.addNeonStrip(0, 6.0, -85, 0.3, 0.12, 9.5, 0xfcee0a, 2.2);
+    this.addNeonStrip(0, 6.0, -85, 0.3, 0.12, 9.5, 0xfcee0a, 1.5);
 
-    const pt = new THREE.PointLight(0xffcb66, 52, 24, 1.1);
+    const pt = new THREE.PointLight(0xf5be5b, 18, 18, 1.5);
     pt.position.set(0, 5.2, -85);
     this.root.add(pt);
   }
@@ -598,18 +598,18 @@ export class LevelBuilder {
   private buildCouncilHall(): void {
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#ff003c', 9, 13),
-      metalness: 0.38,
-      roughness: 0.32,
+      metalness: 0.22,
+      roughness: 0.56,
     });
     const wallMat = new THREE.MeshStandardMaterial({
       map: this.textures.getWallPanel('#ff003c', 8, 2),
-      metalness: 0.4,
-      roughness: 0.38,
+      metalness: 0.22,
+      roughness: 0.62,
     });
     const monolithMat = new THREE.MeshStandardMaterial({
-      color: 0x263047,
-      metalness: 0.45,
-      roughness: 0.3,
+      color: 0x222b3f,
+      metalness: 0.25,
+      roughness: 0.54,
     });
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 52), floorMat);
@@ -771,8 +771,8 @@ export class LevelBuilder {
     // Dramatic crimson & golden ceiling lighting
     for (const lz of [-96, -109, -122, -135]) {
       const isCrimson = lz === -135;
-      this.addNeonStrip(0, 13.6, lz, 26, 0.2, 0.4, isCrimson ? 0xff003c : 0xfcee0a, 2.0);
-      const pt = new THREE.PointLight(isCrimson ? 0xff4066 : 0xffcc77, isCrimson ? 85 : 92, 46, 1.1);
+      this.addNeonStrip(0, 13.6, lz, 26, 0.2, 0.4, isCrimson ? 0xff003c : 0xfcee0a, 1.5);
+      const pt = new THREE.PointLight(isCrimson ? 0xff3b62 : 0xf5be6b, isCrimson ? 26 : 28, 36, 1.5);
       pt.position.set(0, 10.6, lz);
       this.root.add(pt);
       if (isCrimson) this.alarmLights.push(pt);
@@ -865,7 +865,7 @@ export class LevelBuilder {
 
     // Pulse alarm lights
     for (let i = 0; i < this.alarmLights.length; i++) {
-      this.alarmLights[i].intensity = 72 + Math.sin(totalTime * 5.2 + i) * 20;
+      this.alarmLights[i].intensity = 24 + Math.sin(totalTime * 5.2 + i) * 7;
     }
 
     // Animate sliding doors
