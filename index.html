@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MARAKULIN TOWER: 2077 — Штурм Самира</title>
+  </head>
+  <body>
+    <div id="game-viewport"></div>
+
+    <!-- IN-GAME CYBERPUNK HUD -->
+    <div id="hud" class="hud hidden">
+      <!-- Top-Left: Vitals & Holo-Call -->
+      <div class="hud-top-left">
+        <div class="vitals-panel">
+          <div class="vitals-row">
+            <span class="label-tag">HP</span>
+            <div class="bar-track hp-track">
+              <div id="hp-fill" class="bar-fill hp-fill" style="width: 100%"></div>
+            </div>
+            <span id="hp-value" class="vitals-num">100</span>
+          </div>
+          <div class="vitals-row">
+            <span class="label-tag cyan">АРМ</span>
+            <div class="bar-track armor-track">
+              <div id="armor-fill" class="bar-fill armor-fill" style="width: 100%"></div>
+            </div>
+            <span id="armor-value" class="vitals-num cyan">50</span>
+          </div>
+          <div class="vitals-abilities">
+            <div class="ability-chip" id="sandevistan-chip">
+              <span class="key-badge">Q</span>
+              <span class="ability-name">САНДЕВИСТАН</span>
+              <div class="mini-bar"><div id="sandy-fill" class="mini-fill" style="width: 100%"></div></div>
+            </div>
+            <div class="ability-chip" id="maxdoc-chip">
+              <span class="key-badge">X</span>
+              <span class="ability-name">MAXDOC</span>
+              <span id="maxdoc-count" class="ability-count">3</span>
+            </div>
+            <div class="ability-chip" id="melee-chip">
+              <span class="key-badge">F</span>
+              <span class="ability-name">ОГОНЬ</span>
+              <span id="melee-status" class="ability-count cyan">RDY</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Holo-Call Panel -->
+        <div id="holo-panel" class="holo-panel hidden">
+          <div id="holo-portrait" class="holo-portrait"></div>
+          <div class="holo-meta">
+            <div class="holo-header">
+              <span class="holo-live-dot"></span>
+              <span id="holo-name" class="holo-name">РОДИОН</span>
+            </div>
+            <div id="holo-role" class="holo-role">MARAKULIN CORP // СОВЕТ</div>
+            <div class="holo-wave">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top-Center: Boss Bar & Netrunner Warning -->
+      <div class="hud-top-center">
+        <div id="boss-bar" class="boss-bar hidden">
+          <div class="boss-header">
+            <span class="boss-name">ЛЕВ СМЭШЕР</span>
+            <span id="boss-phase-tag" class="boss-phase">КИБОРГ-ДЖАГГЕРНАУТ // КЛАСС S</span>
+          </div>
+          <div class="boss-track">
+            <div id="boss-hp-fill" class="boss-fill" style="width: 100%"></div>
+          </div>
+        </div>
+
+        <div id="overheat-warning" class="overheat-warning hidden">
+          <div class="overheat-title">⚠ ВЗЛОМ НЕТРАННЕРА: ПЕРЕГРЕВ — УСТРАНИТЕ ЦЕЛЬ</div>
+          <div class="overheat-track">
+            <div id="overheat-fill" class="overheat-fill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div id="trauma-banner" class="trauma-banner hidden">
+          <div class="trauma-code">CRITICAL TRAUMA // OPTICS MALFUNCTION</div>
+          <div id="trauma-sub" class="trauma-sub">ПОТЕРЯ СОЗНАНИЯ...</div>
+        </div>
+      </div>
+
+      <!-- Top-Right: Quest Tracker -->
+      <div class="hud-top-right">
+        <div class="quest-panel">
+          <div class="quest-title">ШТУРМ МАРАКУЛИН ТАВЕР</div>
+          <div id="quest-objective" class="quest-objective">Пробейтесь через Главный Атриум</div>
+          <div id="quest-sub" class="quest-sub">СЕКТОР 01 // ГЛАВНЫЙ АТРИУМ</div>
+        </div>
+      </div>
+
+      <!-- Center: Crosshair, Hitmarker, Interaction Prompt -->
+      <div id="crosshair-wrap" class="crosshair-wrap">
+        <div class="crosshair-dot"></div>
+        <div class="crosshair-line top"></div>
+        <div class="crosshair-line bottom"></div>
+        <div class="crosshair-line left"></div>
+        <div class="crosshair-line right"></div>
+        <div id="hitmarker" class="hitmarker"></div>
+      </div>
+
+      <div id="interact-prompt" class="interact-prompt hidden">
+        <span id="interact-text">[E] ВЗЛОМАТЬ ТЕРМИНАЛ</span>
+      </div>
+
+      <!-- Soulkiller Extraction HUD -->
+      <div id="soulkiller-hud" class="soulkiller-hud hidden">
+        <div class="sk-title">SOULKILLER v4.2 // ДУШЕГУБ АКТИВИРОВАН</div>
+        <div class="sk-meta">ОБЪЕКТ: САМИР &nbsp;|&nbsp; ОПЕРАТОР: РОДИОН</div>
+        <div class="sk-bar-track">
+          <div id="sk-fill" class="sk-bar-fill" style="width: 0%"></div>
+        </div>
+        <div id="sk-percent" class="sk-percent">ИЗВЛЕЧЕНИЕ ДУШИ: 0%</div>
+      </div>
+
+      <!-- Bottom-Right: Weapon Info -->
+      <div id="weapon-panel" class="weapon-panel">
+        <div class="weapon-name">MALORIAN S-3516</div>
+        <div class="weapon-ammo-row">
+          <span id="ammo-current" class="ammo-current">8</span>
+          <span class="ammo-sep">/</span>
+          <span class="ammo-reserve">∞</span>
+        </div>
+        <div id="weapon-state" class="weapon-state">ГОТОВ К ОГНЮ</div>
+      </div>
+
+      <!-- Bottom-Center: Subtitles & Dialogue Choices -->
+      <div class="hud-bottom-center">
+        <div id="dialogue-choices" class="dialogue-choices hidden"></div>
+        <div id="subtitle-box" class="subtitle-box hidden">
+          <span id="subtitle-speaker" class="subtitle-speaker">САМИР:</span>
+          <span id="subtitle-text" class="subtitle-text"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TITLE SCREEN -->
+    <div id="title-screen" class="overlay-screen title-screen">
+      <div class="title-card">
+        <div class="cyber-badge">CYBERPUNK 2077 TRIBUTE // FIRST-PERSON SHOOTER</div>
+        <h1 class="game-logo">
+          <span class="logo-main">MARAKULIN TOWER</span>
+          <span class="logo-year">2077</span>
+        </h1>
+        <p class="story-lead">
+          Самир врывается в цитадель корпорации с культовым <strong>Malorian S-3516</strong> и имплантом
+          <strong>Сандевистан</strong>, чтобы добраться до корпората <strong>Родиона</strong>.
+          Но перед Залом Совета его ждёт <strong>Лев Смэшер</strong> — и судьба на операционном столе.
+        </p>
+
+        <div class="controls-grid">
+          <div><kbd>W A S D</kbd> Движение</div>
+          <div><kbd>ЛКМ</kbd> Огонь (Malorian)</div>
+          <div><kbd>SHIFT</kbd> Рывок</div>
+          <div><kbd>R</kbd> Перезарядка</div>
+          <div><kbd>Q</kbd> Сандевистан (слоу-мо)</div>
+          <div><kbd>F</kbd> Огненный ближний удар</div>
+          <div><kbd>X</kbd> MaxDoc (лечение)</div>
+          <div><kbd>E</kbd> Взлом / Припасы</div>
+        </div>
+
+        <button id="btn-start" class="cyber-btn primary">НАЧАТЬ ШТУРМ БАШНИ</button>
+        <div class="title-hint">После запуска курсор будет захвачен для обзора мышью. ESC — пауза и настройки.</div>
+      </div>
+    </div>
+
+    <!-- PAUSE / SETTINGS OVERLAY -->
+    <div id="pause-screen" class="overlay-screen hidden">
+      <div class="modal-card">
+        <div class="cyber-badge">СИСТЕМА НА ПАУЗЕ</div>
+        <h2 class="modal-title">МАРАКУЛИН ТАВЕР // КАЛИБРОВКА</h2>
+
+        <div class="setting-row">
+          <label for="slider-sens">Чувствительность мыши: <span id="sens-val">1.0x</span></label>
+          <input id="slider-sens" type="range" min="0.3" max="2.5" step="0.1" value="1.0" />
+        </div>
+
+        <div class="setting-row">
+          <label for="slider-vol">Громкость звука: <span id="vol-val">65%</span></label>
+          <input id="slider-vol" type="range" min="0" max="100" step="5" value="65" />
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-resume" class="cyber-btn primary">ПРОДОЛЖИТЬ ШТУРМ</button>
+          <button id="btn-restart" class="cyber-btn secondary">НАЧАТЬ ЗАНОВО</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLATLINED / CHECKPOINT RETRY OVERLAY -->
+    <div id="death-screen" class="overlay-screen death-screen hidden">
+      <div class="modal-card danger">
+        <div class="cyber-badge red">БИОМОНИТОР // ОТКАЗ СИСТЕМ</div>
+        <h2 class="modal-title red">ВЫ ПОГИБЛИ</h2>
+        <p class="modal-desc">Релик перезагружает нейросеть Самира к последнему чекпоинту сектора.</p>
+        <button id="btn-retry" class="cyber-btn primary">ВОЗРОДИТЬСЯ НА ЧЕКПОИНТЕ</button>
+      </div>
+    </div>
+
+    <!-- FINALE CREDITS & STATS OVERLAY -->
+    <div id="credits-screen" class="overlay-screen credits-screen hidden">
+      <div class="modal-card credits-card">
+        <div class="cyber-badge cyan">ЭНГРАММА СОЗДАНА // ПРОТОКОЛ «ДУШЕГУБ» ЗАВЕРШЁН</div>
+        <h2 class="modal-title">ДУША САМИРА ПОХИЩЕНА</h2>
+        <p class="credits-epilogue">
+          Сознание Самира запечатано в биочипе корпорации Маракулин. Родион одержал победу — но легенды
+          о штурме Маракулин Тавер никогда не умирают.
+        </p>
+
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">ВРЕМЯ ШТУРМА</span>
+            <span id="stat-time" class="stat-value">00:00</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">УСТРАНЕНО ВРАГОВ</span>
+            <span id="stat-kills" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">ТОЧНОСТЬ</span>
+            <span id="stat-accuracy" class="stat-value">0%</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">ХЕДШОТЫ</span>
+            <span id="stat-headshots" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">УРОН ЛЬВУ СМЭШЕРУ</span>
+            <span id="stat-boss-dmg" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">СТАТУС ОБЪЕКТА</span>
+            <span class="stat-value red">ЭНГРАММА #2077</span>
+          </div>
+        </div>
+
+        <button id="btn-replay" class="cyber-btn primary">ПОВТОРИТЬ ШТУРМ МАРАКУЛИН ТАВЕР</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
