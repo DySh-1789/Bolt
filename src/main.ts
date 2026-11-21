@@ -11,11 +11,11 @@ function bootstrap(): void {
   const engine = new Engine(viewport);
   const director = new StoryDirector(engine, viewport);
 
-  let lastTime = performance.now();
+  let lastTime: number | null = null;
   let rafId = 0;
 
   const frame = (now: number): void => {
-    const dt = (now - lastTime) / 1000;
+    const dt = lastTime === null ? 0 : Math.max(0, (now - lastTime) / 1000);
     lastTime = now;
     director.update(dt);
     rafId = window.requestAnimationFrame(frame);

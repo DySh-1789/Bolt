@@ -224,7 +224,7 @@ export class ElevatorRig {
     // Outer recessed shaft backdrop walls (set 1.8m outside the glass cabin walls so Samir sees depth!)
     const outerOffset = halfW + 1.8;
     for (const side of [-1, 1]) {
-      const outerWall = new THREE.Mesh(new THREE.BoxGeometry(0.4, shaftHeight, depth + 1.2), shaftWallMat);
+      const outerWall = new THREE.Mesh(new THREE.BoxGeometry(0.4, shaftHeight, depth - 0.2), shaftWallMat);
       outerWall.position.set(side * outerOffset, shaftMidY, centerZ);
       this.root.add(outerWall);
 
@@ -286,7 +286,7 @@ export class ElevatorRig {
     }
 
     // Shaft cap ceiling above top floor
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(width + 4, 0.6, depth + 2), frameMat);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(width + 4, 0.6, depth), frameMat);
     cap.position.set(0, shaftTop, centerZ);
     this.root.add(cap);
   }
@@ -513,5 +513,22 @@ export class ElevatorRig {
     const res = this.state.update(dt);
     this.syncVisuals();
     return res;
+  }
+
+  dispose(): void {
+    this.displayTex.dispose();
+    const disposedMats = new Set<THREE.Material>();
+    this.root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (!disposedMats.has(m)) {
+            disposedMats.add(m);
+            m.dispose();
+          }
+        }
+      }
+    });
   }
 }

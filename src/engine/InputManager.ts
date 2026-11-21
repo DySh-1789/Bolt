@@ -27,14 +27,21 @@ export class InputManager {
   private targetEl: HTMLElement;
   private onLockChange?: (locked: boolean) => void;
   private onEscapePressed?: () => void;
+  private onViewportClick?: () => void;
+  private lastUnlockTime = -1000;
 
   constructor(
     targetEl: HTMLElement,
-    callbacks?: { onLockChange?: (locked: boolean) => void; onEscapePressed?: () => void },
+    callbacks?: {
+      onLockChange?: (locked: boolean) => void;
+      onEscapePressed?: () => void;
+      onViewportClick?: () => void;
+    },
   ) {
     this.targetEl = targetEl;
     this.onLockChange = callbacks?.onLockChange;
     this.onEscapePressed = callbacks?.onEscapePressed;
+    this.onViewportClick = callbacks?.onViewportClick;
     this.bindEvents();
   }
 
@@ -46,11 +53,21 @@ export class InputManager {
     window.addEventListener('mouseup', this.handleMouseUp);
     window.addEventListener('blur', this.handleBlur);
     document.addEventListener('pointerlockchange', this.handlePointerLockChange);
+    this.targetEl.addEventListener('click', this.handleViewportClick);
   }
+
+  private handleViewportClick = (): void => {
+    if (!this.locked) {
+      this.onViewportClick?.();
+    }
+  };
 
   private handleKeyDown = (e: KeyboardEvent): void => {
     if (e.code === 'Escape') {
-      this.onEscapePressed?.();
+      // Ignore Escape keydown if pointer lock is active or was just released by Escape itself
+      if (!this.locked && performance.now() - this.lastUnlockTime > 150) {
+        this.onEscapePressed?.();
+      }
       return;
     }
     if (!this.keys.has(e.code)) {
@@ -94,12 +111,22 @@ export class InputManager {
     this.keys.clear();
     this.justPressed.clear();
     this.mouseDown = false;
+    this.mouseJustPressed = false;
+    this.accumMouseX = 0;
+    this.accumMouseY = 0;
   };
 
   private handlePointerLockChange = (): void => {
+    const wasLocked = this.locked;
     this.locked = document.pointerLockElement === this.targetEl;
     if (!this.locked) {
+      if (wasLocked) {
+        this.lastUnlockTime = performance.now();
+      }
+      this.keys.clear();
+      this.justPressed.clear();
       this.mouseDown = false;
+      this.mouseJustPressed = false;
       this.accumMouseX = 0;
       this.accumMouseY = 0;
     }
@@ -191,5 +218,6 @@ export class InputManager {
     window.removeEventListener('mouseup', this.handleMouseUp);
     window.removeEventListener('blur', this.handleBlur);
     document.removeEventListener('pointerlockchange', this.handlePointerLockChange);
+    this.targetEl.removeEventListener('click', this.handleViewportClick);
   }
 }

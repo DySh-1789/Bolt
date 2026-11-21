@@ -147,6 +147,7 @@ export class StoryDirector {
     this.input = new InputManager(viewportEl, {
       onLockChange: (locked) => this.handlePointerLockChange(locked),
       onEscapePressed: () => this.handleEscape(),
+      onViewportClick: () => this.handleViewportClick(),
     });
 
     this.hud = new HUD({
@@ -160,6 +161,14 @@ export class StoryDirector {
     });
 
     this.enterTitle();
+  }
+
+  private handleViewportClick(): void {
+    if (this.paused || this.dead) return;
+    if (this.story.act === 'TITLE' || this.story.act === 'CREDITS') return;
+    if (this.story.act === 'OPERATING_TABLE' && this.tableStage === 'AWAITING_CHOICE') return;
+    if (this.story.act === 'SOULKILLER') return;
+    this.input.requestPointerLock();
   }
 
   private handlePointerLockChange(locked: boolean): void {
@@ -184,14 +193,21 @@ export class StoryDirector {
 
   private pauseGame(): void {
     this.paused = true;
+    this.audio.setPaused(true);
+    this.input.clearTransient();
     this.input.exitPointerLock();
     this.hud.showScreen('pause');
   }
 
   private resumeGame(): void {
     this.paused = false;
+    this.audio.setPaused(false);
+    this.input.clearTransient();
     this.hud.showScreen('playing');
-    if (this.story.act !== 'OPERATING_TABLE' && this.story.act !== 'SOULKILLER') {
+    if (
+      this.story.act !== 'SOULKILLER' &&
+      !(this.story.act === 'OPERATING_TABLE' && this.tableStage === 'AWAITING_CHOICE')
+    ) {
       this.input.requestPointerLock();
     }
   }
@@ -229,6 +245,10 @@ export class StoryDirector {
     this.story.reset();
     this.paused = false;
     this.dead = false;
+    this.audio.setPaused(false);
+    this.audio.setSandevistanMode(false);
+    this.input.clearTransient();
+    this.weapon.resetVisuals();
     this.weapon.setVisible(false);
     this.boss.hide();
     this.operatingScene.deactivate();
@@ -244,6 +264,8 @@ export class StoryDirector {
 
   startNewGame(): void {
     this.audio.unlock();
+    this.audio.setPaused(false);
+    this.audio.setSandevistanMode(false);
     this.story.reset();
     this.paused = false;
     this.dead = false;
@@ -257,11 +279,13 @@ export class StoryDirector {
     this.subtitleQueue = [];
     this.subtitleCooldown = 0;
     Object.assign(this.fx, createDefaultPostFx());
+    this.input.clearTransient();
 
     this.enemies.clearAll();
     this.boss.hide();
     this.operatingScene.deactivate();
     this.weapon.clearDroppedWeapon();
+    this.weapon.resetVisuals();
     this.level.resetInteractiveState();
     this.engine.setFogDensity(0.01, 0x0c1224);
 
@@ -278,6 +302,7 @@ export class StoryDirector {
     this.hud.setTraumaBanner(false);
     this.hud.setOverheatProgress(0);
     this.hud.hideDialogueChoices();
+    this.hud.clearSubtitle();
 
     this.input.requestPointerLock();
     this.enterIntro();
@@ -364,6 +389,9 @@ export class StoryDirector {
     this.actTimer = 0;
     this.knockbackSlamTriggered = false;
 
+    // Lock movement during the brief ambush reveal before Smasher's slam
+    this.player.setMode('INTRO');
+
     // Seal elevator exit behind Samir and turn Council Doors crimson!
     this.level.setDoorOpen('door_elev2_top', false, false);
     this.level.setCouncilDoorAlert(true);
@@ -412,12 +440,14 @@ export class StoryDirector {
     this.audio.playPlayerHurt(true);
     this.audio.playTinnitus(3.2);
 
-    // Position Lev Smasher directly in front of Samir and throw Samir's gun to the floor
-    this.boss.positionForFinisher(this.player.position, this.player.yaw);
-    this.weapon.setVisible(false);
-    this.weapon.spawnDroppedWeapon(this.player.position, this.player.yaw);
-
+    // Position Lev Smasher in an unobstructed spot near Samir and orient fallen camera toward him
+    const smasherPos = this.boss.positionForFinisher(this.player.position, this.player.yaw);
     this.player.setMode('FALLEN');
+    this.player.faceTargetInFallenMode(smasherPos.x, smasherPos.z);
+
+    this.weapon.setVisible(false);
+    this.weapon.spawnDroppedWeapon(this.player.position, this.player.yaw, this.player.groundY);
+
     this.player.addShake(1.3);
     this.fx.damageVignette = 0.95;
     this.fx.glitch = 1.1;
@@ -445,9 +475,11 @@ export class StoryDirector {
 
     // Clean up tower entities and activate Sector 4 Operating Lab at Y = 100
     this.enemies.clearAll();
+    this.boss.state.markFinished();
     this.boss.hide();
     this.weapon.clearDroppedWeapon();
     this.operatingScene.activate();
+    this.level.updateShadowAnchor(0, 0, 0, false);
 
     this.engine.setFogDensity(0.018, 0x0b1322);
     this.player.setOperatingTableAnchor(0, this.operatingScene.originY + 1.68, 0.35);
@@ -460,6 +492,7 @@ export class StoryDirector {
     this.fx.eyelids = 0.95;
 
     this.audio.setMusicIntensity('operating');
+    this.hud.setBossBar(false);
     this.hud.setCombatHudVisible(false);
     this.hud.setTraumaBanner(false);
     this.hud.setQuest('Прийти в сознание на операционном столе', 'ЛАБОРАТОРИЯ ЭНГРАММ // РОДИОН');
@@ -496,6 +529,7 @@ export class StoryDirector {
     this.soulkillerTimer = 0;
     this.audio.setMusicIntensity('soulkiller');
     this.audio.playSoulkillerSurge(this.soulkillerDuration);
+    this.hud.setBossBar(false);
     this.hud.setSoulkillerProgress(true, 0);
     this.hud.setQuest('ПРОТОКОЛ «ДУШЕГУБ» АКТИВЕН', 'КРАЖА ДУШИ // СОЗДАНИЕ ЭНГРАММЫ');
     this.queueLine(
@@ -510,6 +544,7 @@ export class StoryDirector {
     this.story.transitionTo('CREDITS');
     this.input.exitPointerLock();
     this.audio.setMusicIntensity('title');
+    this.hud.setBossBar(false);
     this.hud.setSoulkillerProgress(false);
     this.hud.clearSubtitle();
     this.hud.populateCredits(this.story.stats);
@@ -519,9 +554,12 @@ export class StoryDirector {
   private triggerPlayerDeath(): void {
     if (this.dead) return;
     this.dead = true;
+    this.player.state.sandevistanActive = false;
+    this.audio.setSandevistanMode(false);
     this.story.recordDeath();
     this.audio.playPlayerHurt(true);
     this.audio.setMusicIntensity('silent');
+    this.input.clearTransient();
     this.input.exitPointerLock();
     this.hud.showScreen('death');
   }
@@ -529,9 +567,18 @@ export class StoryDirector {
   private respawnAtCheckpoint(): void {
     this.dead = false;
     this.paused = false;
+    this.audio.setPaused(false);
+    this.audio.setSandevistanMode(false);
+    this.input.clearTransient();
+    this.subtitleQueue = [];
+    this.subtitleCooldown = 0;
+    this.hud.clearSubtitle();
+    this.hud.setBossBar(false);
+
     Object.assign(this.fx, createDefaultPostFx());
     this.player.state.resetFull();
     this.weapon.state.reset();
+    this.weapon.resetVisuals();
     this.weapon.setVisible(true);
     this.player.teleport(this.checkpoint.x, this.checkpoint.y, this.checkpoint.z, this.checkpoint.yaw, 0);
     this.player.setMode('FREE');
@@ -542,27 +589,49 @@ export class StoryDirector {
     this.input.requestPointerLock();
 
     if (this.checkpoint.act === 'ATRIUM') {
+      this.atriumCleared = false;
+      this.level.elev1.reset();
+      this.level.setDoorOpen('door_elev1_bottom', false, true);
+      this.level.setInteractableEnabled('elev1_button', false);
       this.enterAtrium();
     } else if (this.checkpoint.act === 'SERVER_ROOM') {
+      this.serverCleared = false;
+      this.laserHacked = false;
       this.level.elev1.snapToTop();
       this.level.setDoorOpen('door_elev1_top', true, true);
+      this.level.setLaserBarrierActive(true);
+      this.level.elev2.reset();
+      this.level.setDoorOpen('door_elev2_bottom', false, true);
+      this.level.setInteractableEnabled('terminal_hack', false);
+      this.level.setInteractableEnabled('elev2_button', false);
+      this.level.resetCratesByPrefix('crate_sector2');
       this.enterServerRoom();
     } else if (this.checkpoint.act === 'COUNCIL_HALL') {
+      this.councilCleared = false;
       this.level.elev1.snapToTop();
       this.level.elev2.snapToTop();
       this.level.setDoorOpen('door_elev2_top', true, true);
+      this.level.setCouncilDoorAlert(false);
+      this.level.resetCratesByPrefix('crate_sector3');
       this.enterCouncilHall();
     } else if (this.checkpoint.act === 'BOSS_FIGHT') {
+      this.enemies.clearAll();
       this.level.elev1.snapToTop();
       this.level.elev2.snapToTop();
       this.level.setDoorOpen('door_elev2_top', false, true);
+      this.level.setCouncilDoorAlert(true);
+      this.level.resetCratesByPrefix('crate_sector3');
       this.enterBossFight();
     }
   }
 
   private handlePlayerFire(): void {
+    const wasReloading = this.weapon.state.reloading;
     if (!this.weapon.state.tryFire()) return;
     this.audio.playMalorianShot();
+    if (!wasReloading && this.weapon.state.reloading) {
+      this.audio.playReload();
+    }
     this.player.addShake(0.18);
 
     const origin = new THREE.Vector3(
@@ -572,7 +641,7 @@ export class StoryDirector {
     );
     const dir = this.player.getForwardVector();
 
-    const wallRay = this.physics.raycast(origin, dir, 120, true);
+    const wallRay = this.physics.raycastBullets(origin, dir, 120);
     const maxDist = wallRay.hit ? wallRay.distance : 120;
     let tracerEnd = new THREE.Vector3(wallRay.point.x, wallRay.point.y, wallRay.point.z);
 
@@ -723,7 +792,8 @@ export class StoryDirector {
     }
   }
 
-  private updateElevators(dt: number): void {
+  private updateElevators(dt: number): boolean {
+    let playerInMovingElevator = false;
     const elevators = [
       { rig: this.level.elev1, topDoor: 'door_elev1_top', arrivalQuest: 'Выйдите из лифта в Серверный узел (Этаж 42)', arrivalSub: 'ЭТАЖ 42 // ПРИБЫТИЕ' },
       { rig: this.level.elev2, topDoor: 'door_elev2_top', arrivalQuest: 'Выйдите из лифта в Предбанник Совета (Этаж 95)', arrivalSub: 'ЭТАЖ 95 // ПРИБЫТИЕ' },
@@ -737,6 +807,7 @@ export class StoryDirector {
       // Carry Samir physically upward with the moving 3D elevator cabin!
       if (entry.rig.isPlayerInside(this.player.position.x, this.player.position.z)) {
         this.player.syncElevatorY(res.currentY);
+        playerInMovingElevator = true;
       }
 
       if (res.beganMoving) {
@@ -758,10 +829,20 @@ export class StoryDirector {
         this.hud.setQuest(entry.arrivalQuest, entry.arrivalSub);
       }
     }
+    return playerInMovingElevator;
+  }
+
+  private isCombatAct(): boolean {
+    return (
+      this.story.act === 'ATRIUM' ||
+      this.story.act === 'SERVER_ROOM' ||
+      this.story.act === 'COUNCIL_HALL' ||
+      this.story.act === 'BOSS_FIGHT'
+    );
   }
 
   update(rawDt: number): void {
-    const dt = Math.min(rawDt, 0.05);
+    const dt = Math.max(0, Math.min(rawDt, 0.05));
     this.totalTime += dt;
 
     // Live title camera pan through neon Atrium
@@ -770,7 +851,8 @@ export class StoryDirector {
       const camZ = 10 + Math.cos(this.totalTime * 0.24) * 5.5;
       this.engine.camera.position.set(camX, 4.6, camZ);
       this.engine.camera.lookAt(0, 3.6, -8);
-      this.level.update(dt, this.totalTime);
+      this.level.updateShadowAnchor(0, FLOOR_ATRIUM_Y, -5, true);
+      this.level.update(dt, dt);
       this.engine.render(dt, this.fx);
       return;
     }
@@ -805,10 +887,10 @@ export class StoryDirector {
     }
 
     // Update physical moving elevators BEFORE player movement so groundY is exact
-    this.updateElevators(dt);
+    const inMovingElevator = this.updateElevators(dt);
 
     // Player movement & abilities
-    const playerRes = this.player.update(dt, input, this.physics);
+    const playerRes = this.player.update(dt, input, this.physics, inMovingElevator);
     if (playerRes.dashed) {
       this.audio.playDash();
       this.fx.chromaticBoost = 0.45;
@@ -832,41 +914,45 @@ export class StoryDirector {
     const worldTimeScale = this.player.state.getWorldTimeScale();
     const worldDt = dt * worldTimeScale;
 
-    // Weapon actions in combat acts
-    const canShoot =
-      this.story.act === 'ATRIUM' ||
-      this.story.act === 'SERVER_ROOM' ||
-      this.story.act === 'COUNCIL_HALL' ||
-      this.story.act === 'BOSS_FIGHT';
-
-    if (canShoot) {
+    // Weapon actions in combat acts (re-check isCombatAct() after fire/melee in case finisher triggered)
+    if (this.isCombatAct()) {
       if (input.firePressed || input.fireHeld) {
         this.handlePlayerFire();
       }
-      if (input.reloadPressed && this.weapon.state.startReload()) {
+      if (this.isCombatAct() && input.reloadPressed && this.weapon.state.startReload()) {
         this.audio.playReload();
       }
-      if (input.meleePressed) {
+      if (this.isCombatAct() && input.meleePressed) {
         this.handlePlayerMelee();
       }
 
-      // Check nearby interactables on current floor
-      const nearby = this.level.findNearbyInteractable(
-        this.player.position.x,
-        this.player.position.y,
-        this.player.position.z,
-      );
-      this.hud.setInteractPrompt(nearby ? nearby.label : null);
-      if (nearby && input.interactPressed) {
-        this.handleInteraction(nearby.id);
+      if (this.isCombatAct()) {
+        // Check nearby interactables on current floor
+        const nearby = this.level.findNearbyInteractable(
+          this.player.position.x,
+          this.player.position.y,
+          this.player.position.z,
+        );
+        this.hud.setInteractPrompt(nearby ? nearby.label : null);
+        if (nearby && input.interactPressed) {
+          this.handleInteraction(nearby.id);
+        }
+      } else {
+        this.hud.setInteractPrompt(null);
       }
     } else {
       this.hud.setInteractPrompt(null);
     }
 
     const isMoving = Math.abs(input.moveForward) > 0 || Math.abs(input.moveRight) > 0;
-    this.weapon.update(dt, canShoot && isMoving);
-    this.level.update(worldDt, this.totalTime);
+    this.weapon.update(dt, this.isCombatAct() && isMoving);
+    this.level.update(worldDt, dt);
+    this.level.updateShadowAnchor(
+      this.player.position.x,
+      this.player.groundY,
+      this.player.position.z,
+      this.story.act !== 'OPERATING_TABLE' && this.story.act !== 'SOULKILLER',
+    );
 
     // Update Act-specific logic
     this.updateActLogic(dt, worldDt, input);
@@ -891,11 +977,12 @@ export class StoryDirector {
   private updateActLogic(dt: number, worldDt: number, input: ReturnType<InputManager['consumeSnapshot']>): void {
     const playerEye = this.player.getEyePosition();
 
-    // Update active enemies during Sectors 1-3
+    // Update active enemies during Sectors 1-3 AND during BOSS_FIGHT if player rushed past Council guards
     if (
       this.story.act === 'ATRIUM' ||
       this.story.act === 'SERVER_ROOM' ||
-      this.story.act === 'COUNCIL_HALL'
+      this.story.act === 'COUNCIL_HALL' ||
+      (this.story.act === 'BOSS_FIGHT' && this.enemies.getAliveCount() > 0)
     ) {
       const { maxOverheatProgress } = this.enemies.update(
         worldDt,
@@ -904,14 +991,17 @@ export class StoryDirector {
         this.engine.camera.position,
         (heavy) => this.audio.playEnemyShot(heavy),
         (dmg, fromHack) => {
-          const res = this.player.state.takeDamage(dmg, true);
+          const inBossPhase2 = this.story.act === 'BOSS_FIGHT' && this.boss.state.phase === 'PHASE_2';
+          const res = this.player.state.takeDamage(dmg, !inBossPhase2);
           this.fx.damageVignette = Math.min(1, this.fx.damageVignette + 0.55);
           if (fromHack) {
             this.fx.glitch = Math.min(1, this.fx.glitch + 0.75);
           }
           this.player.addShake(fromHack ? 0.55 : 0.25);
           this.audio.playPlayerHurt(fromHack);
-          if (res.died) {
+          if (inBossPhase2 && this.boss.state.shouldTriggerFinisherFromPlayerLowHp(this.player.state.hp)) {
+            this.enterSamirDefeated();
+          } else if (res.died) {
             this.triggerPlayerDeath();
           }
         },
@@ -971,8 +1061,8 @@ export class StoryDirector {
           this.hud.setQuest('Подойдите к дверям Зала Совета Родиона', 'СЕКТОР 03 // ПУТЬ ОТКРЫТ');
           this.queueLine('samir', 'Вот он — Зал Совета. Выходи, Родион!', 3.2, true);
         }
-        // Trigger Lev Smasher ambush right before Rodion's doors!
-        if (this.councilCleared && this.player.position.z <= -131.5) {
+        // Trigger Lev Smasher ambush right before Rodion's doors (even if rushing past guards — Smasher will wreck them too!)
+        if (this.player.position.z <= -131.5) {
           this.enterBossKnockback();
         }
         break;
@@ -987,6 +1077,14 @@ export class StoryDirector {
           this.fx.damageVignette = 0.82;
           this.fx.glitch = 1.0;
           this.player.startKnockback(-113, 0);
+          // Smasher's entry shockwave blasts any nearby surviving corporate guards
+          this.enemies.applyAreaDamage(
+            { x: 0, y: FLOOR_COUNCIL_Y + 1.0, z: -135.5 },
+            11.0,
+            70,
+            () => this.story.recordKill(),
+            true,
+          );
         }
         if (this.actTimer >= 2.25) {
           this.enterBossFight();
@@ -1017,17 +1115,22 @@ export class StoryDirector {
               this.triggerPlayerDeath();
             }
           },
-          onPhase2Started: () => this.onBossEnteredPhase2(),
-          onFinisherTriggered: () => this.enterSamirDefeated(),
+          onProjectileHitEnemy: (from, to, dmg) =>
+            this.enemies.checkBossProjectileHit(from, to, dmg, () => this.story.recordKill()),
+          onAreaDamageEnemies: (center, radius, dmg, ignoreY) => {
+            this.enemies.applyAreaDamage(center, radius, dmg, () => this.story.recordKill(), ignoreY);
+          },
         });
 
-        this.hud.setBossBar(
-          true,
-          this.boss.state.getHpRatio(),
-          this.boss.state.phase === 'PHASE_2'
-            ? 'ФАЗА II // САНДЕВИСТАН И УДАРНЫЕ ВОЛНЫ'
-            : 'ФАЗА I // АВТОПУШКА И МИКРОРАКЕТЫ',
-        );
+        if (this.story.act === 'BOSS_FIGHT') {
+          this.hud.setBossBar(
+            true,
+            this.boss.state.getHpRatio(),
+            this.boss.state.phase === 'PHASE_2'
+              ? 'ФАЗА II // САНДЕВИСТАН И УДАРНЫЕ ВОЛНЫ'
+              : 'ФАЗА I // АВТОПУШКА И МИКРОРАКЕТЫ',
+          );
+        }
         break;
       }
 
@@ -1113,7 +1216,7 @@ export class StoryDirector {
 
         this.fx.soulkiller = progress;
         this.fx.glitch = 0.25 + progress * 0.9;
-        this.player.addShake(0.1 + progress * 0.35);
+        this.player.setMinShake(0.08 + progress * 0.65);
         this.hud.setSoulkillerProgress(true, progress);
 
         if (this.soulkillerTimer >= this.soulkillerDuration + 1.2) {
@@ -1131,8 +1234,14 @@ export class StoryDirector {
   }
 
   dispose(): void {
+    this.hud.dispose();
     this.input.dispose();
     this.audio.dispose();
+    this.enemies.dispose();
+    this.boss.dispose();
+    this.weapon.dispose();
+    this.level.dispose();
+    this.operatingScene.dispose();
     this.textures.dispose();
   }
 }

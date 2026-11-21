@@ -176,6 +176,9 @@ export class OperatingTableScene {
     this.surgicalLight = new THREE.SpotLight(0xd8eefc, 34, 18, Math.PI / 2.6, 0.55, 1.45);
     this.surgicalLight.position.set(0, 5.2, 0.4);
     this.surgicalLight.target.position.set(0.6, 1.4, -0.9);
+    this.surgicalLight.castShadow = false;
+    this.surgicalLight.shadow.mapSize.set(512, 512);
+    this.surgicalLight.shadow.bias = -0.001;
     this.root.add(this.surgicalLight, this.surgicalLight.target);
 
     const labFill = new THREE.PointLight(0xaacbe8, 12, 16, 1.5);
@@ -341,8 +344,10 @@ export class OperatingTableScene {
 
   activate(): void {
     this.root.visible = true;
+    this.surgicalLight.castShadow = true;
     this.soulkillerProgress = 0;
     this.soulkillerCrown.position.y = 4.4;
+    this.soulkillerCrown.rotation.y = 0;
     this.soulkillerLasers.visible = false;
     this.soulkillerLight.intensity = 0;
     this.rodionGroup.position.set(1.25, 0.35, -1.55);
@@ -352,6 +357,7 @@ export class OperatingTableScene {
 
   deactivate(): void {
     this.root.visible = false;
+    this.surgicalLight.castShadow = false;
   }
 
   setSoulkillerProgress(progress: number): void {
@@ -395,5 +401,21 @@ export class OperatingTableScene {
 
     // Subtle surgical lamp flicker
     this.surgicalLight.intensity = 34 + Math.sin(elapsed * 11) * (this.soulkillerProgress > 0 ? 10 : 2);
+  }
+
+  dispose(): void {
+    const disposedMats = new Set<THREE.Material>();
+    this.root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
+        obj.geometry.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (!disposedMats.has(m)) {
+            disposedMats.add(m);
+            m.dispose();
+          }
+        }
+      }
+    });
   }
 }

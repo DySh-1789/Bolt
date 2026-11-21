@@ -186,6 +186,7 @@ export class Engine {
     const envScene = new THREE.Scene();
     envScene.background = new THREE.Color(0x0c111e);
 
+    const tempMeshes: THREE.Mesh[] = [];
     const addPanel = (
       x: number,
       y: number,
@@ -201,6 +202,7 @@ export class Engine {
       );
       m.position.set(x, y, z);
       envScene.add(m);
+      tempMeshes.push(m);
     };
 
     // Soft studio reflection panels so chrome/armor has depth without harsh specular glare
@@ -212,6 +214,10 @@ export class Engine {
     addPanel(0, -8, 0, 16, 0.5, 16, 0x131824);
 
     const rt = pmrem.fromScene(envScene, 0.06);
+    for (const m of tempMeshes) {
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
     pmrem.dispose();
     return rt;
   }
@@ -249,7 +255,10 @@ export class Engine {
   dispose(): void {
     window.removeEventListener('resize', this.handleResize);
     this.envRenderTarget.dispose();
+    this.bloomPass.dispose();
+    this.postPass.dispose();
     this.outputPass.dispose();
+    this.composer.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentElement === this.container) {
       this.container.removeChild(this.renderer.domElement);

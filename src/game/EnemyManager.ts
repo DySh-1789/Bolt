@@ -30,6 +30,7 @@ export interface EnemyInstance {
   group: THREE.Group;
   headMesh: THREE.Mesh;
   bodyMesh: THREE.Mesh;
+  hitMeshes: THREE.Object3D[];
   hpBarFill: THREE.Mesh;
   hp: number;
   maxHp: number;
@@ -39,6 +40,7 @@ export interface EnemyInstance {
   strafeTimer: number;
   hitFlashTimer: number;
   deathTimer: number;
+  hoverPhase: number;
   hackProgress: number; // Used by netrunners
   hackBeam: THREE.Line | null;
 }
@@ -63,6 +65,34 @@ const ARCHETYPE_STATS: Record<
   heavy: { hp: 185, speed: 2.3, fireInterval: 1.25, damage: 14, visorHex: 0xfcee0a, bodyHex: 0x543c47 },
 };
 
+function segmentHitsCylinder(
+  from: Vec3,
+  to: Vec3,
+  cx: number,
+  cz: number,
+  minY: number,
+  maxY: number,
+  radius: number,
+): { hit: boolean; distance: number } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const lenXZSq = dx * dx + dz * dz;
+  let t = 0;
+  if (lenXZSq > 1e-8) {
+    t = Math.max(0, Math.min(1, ((cx - from.x) * dx + (cz - from.z) * dz) / lenXZSq));
+  }
+  const px = from.x + dx * t;
+  const py = from.y + dy * t;
+  const pz = from.z + dz * t;
+  const distSq = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
+  if (distSq <= radius * radius && py >= minY && py <= maxY) {
+    const segLen = Math.hypot(dx, dy, dz);
+    return { hit: true, distance: t * segLen };
+  }
+  return { hit: false, distance: Number.POSITIVE_INFINITY };
+}
+
 export class EnemyManager {
   private enemies: EnemyInstance[] = [];
   private projectiles: EnemyProjectile[] = [];
@@ -70,12 +100,34 @@ export class EnemyManager {
   private scene: THREE.Scene;
   private physics: PhysicsWorld;
   private nextId = 1;
+  private animTime = 0;
+  private readonly sparkGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
 
   private raycaster = new THREE.Raycaster();
 
   constructor(scene: THREE.Scene, physics: PhysicsWorld) {
     this.scene = scene;
     this.physics = physics;
+  }
+
+  private disposeObjectTree(root: THREE.Object3D): void {
+    const disposedGeos = new Set<THREE.BufferGeometry>();
+    const disposedMats = new Set<THREE.Material>();
+    root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.Line) {
+        if (obj.geometry && !disposedGeos.has(obj.geometry)) {
+          disposedGeos.add(obj.geometry);
+          obj.geometry.dispose();
+        }
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (m && !disposedMats.has(m)) {
+            disposedMats.add(m);
+            m.dispose();
+          }
+        }
+      }
+    });
   }
 
   spawnWave(configs: EnemySpawnConfig[]): void {
@@ -105,6 +157,7 @@ export class EnemyManager {
 
     let bodyMesh: THREE.Mesh;
     let headMesh: THREE.Mesh;
+    const hitMeshes: THREE.Object3D[] = [];
 
     if (cfg.archetype === 'drone') {
       bodyMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 1), bodyMat);
@@ -116,10 +169,14 @@ export class EnemyManager {
       wingL.position.set(-0.65, 0.1, 0);
       const wingR = wingL.clone();
       wingR.position.x = 0.65;
+      wingL.userData = { enemyId: id, isHead: false };
+      wingR.userData = { enemyId: id, isHead: false };
       group.add(wingL, wingR);
+      hitMeshes.push(headMesh, bodyMesh, wingL, wingR);
     } else if (cfg.archetype === 'turret') {
       const mount = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 0.6, 10), bodyMat);
       mount.position.y = 0.9;
+      mount.userData = { enemyId: id, isHead: false };
       group.add(mount);
       bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.72, 0.95), bodyMat);
       group.add(bodyMesh);
@@ -128,7 +185,9 @@ export class EnemyManager {
       group.add(headMesh);
       const twinBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.85), bodyMat);
       twinBarrel.position.set(0, -0.22, 0.6);
+      twinBarrel.userData = { enemyId: id, isHead: false };
       group.add(twinBarrel);
+      hitMeshes.push(headMesh, bodyMesh, mount, twinBarrel);
     } else {
       // Humanoid cyberpunk soldier (guard, netrunner, heavy)
       const scale = cfg.archetype === 'heavy' ? 1.2 : 1.0;
@@ -139,6 +198,8 @@ export class EnemyManager {
       legL.position.set(-0.18 * scale, 0.42 * scale, 0);
       const legR = legL.clone();
       legR.position.x = 0.18 * scale;
+      legL.userData = { enemyId: id, isHead: false };
+      legR.userData = { enemyId: id, isHead: false };
       group.add(legL, legR);
 
       // Torso (Body hitbox)
@@ -147,6 +208,7 @@ export class EnemyManager {
         bodyMat,
       );
       bodyMesh.position.set(0, 1.26 * scale, 0);
+      bodyMesh.castShadow = true;
       group.add(bodyMesh);
 
       // Glowing armor core stripe
@@ -164,6 +226,8 @@ export class EnemyManager {
       armL.rotation.x = -0.6;
       const armR = armL.clone();
       armR.position.x = 0.46 * scale;
+      armL.userData = { enemyId: id, isHead: false };
+      armR.userData = { enemyId: id, isHead: false };
       group.add(armL, armR);
 
       const gun = new THREE.Mesh(
@@ -186,10 +250,13 @@ export class EnemyManager {
         visorMat,
       );
       visor.position.set(0, 0.02, 0.17 * scale);
+      visor.userData = { enemyId: id, isHead: true };
       headMesh.add(visor);
+
+      hitMeshes.push(headMesh, visor, bodyMesh, legL, legR, armL, armR);
     }
 
-    // Tag meshes for raycast headshot / body detection
+    // Tag primary meshes for raycast headshot / body detection
     bodyMesh.userData = { enemyId: id, isHead: false };
     headMesh.userData = { enemyId: id, isHead: true };
 
@@ -228,6 +295,7 @@ export class EnemyManager {
       group,
       headMesh,
       bodyMesh,
+      hitMeshes,
       hpBarFill,
       hp: stats.hp,
       maxHp: stats.hp,
@@ -237,6 +305,7 @@ export class EnemyManager {
       strafeTimer: 1.5 + Math.random() * 1.5,
       hitFlashTimer: 0,
       deathTimer: 0,
+      hoverPhase: Math.random() * Math.PI * 2,
       hackProgress: 0,
       hackBeam,
     };
@@ -264,7 +333,7 @@ export class EnemyManager {
     const targets: THREE.Object3D[] = [];
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      targets.push(e.headMesh, e.bodyMesh);
+      targets.push(...e.hitMeshes);
     }
 
     if (targets.length === 0) {
@@ -298,7 +367,7 @@ export class EnemyManager {
   }
 
   /**
-   * Flame melee cone blast: deals damage and interrupts nearby enemies.
+   * Flame melee cone blast: deals damage and interrupts nearby enemies (blocked by solid walls/doors).
    */
   handleFlameMelee(
     origin: THREE.Vector3,
@@ -312,20 +381,88 @@ export class EnemyManager {
 
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      toEnemy.copy(e.group.position);
-      toEnemy.y += e.archetype === 'drone' || e.archetype === 'turret' ? 0 : 1.2;
-      toEnemy.sub(origin);
+      const targetPos = new THREE.Vector3(
+        e.group.position.x,
+        e.group.position.y + (e.archetype === 'drone' || e.archetype === 'turret' ? 0 : 1.2),
+        e.group.position.z,
+      );
+      toEnemy.subVectors(targetPos, origin);
       const dist = toEnemy.length();
       if (dist > range) continue;
-      toEnemy.normalize();
-      if (toEnemy.dot(forward) < 0.42) continue;
+      if (dist > 1e-4) {
+        toEnemy.divideScalar(dist);
+        if (toEnemy.dot(forward) < 0.42) continue;
+      }
+      if (!this.physics.hasLineOfSight(origin, targetPos)) continue;
 
       hitCount++;
-      const killed = this.applyDamageToEnemy(e, damage, e.group.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
+      const killed = this.applyDamageToEnemy(e, damage, targetPos);
       if (killed) killCount++;
     }
 
     return { hits: hitCount, kills: killCount };
+  }
+
+  /**
+   * Allows Lev Smasher's area attacks (missiles, shockwaves, Sandevistan slam) to damage/kill surviving enemies.
+   */
+  applyAreaDamage(
+    center: Vec3,
+    radius: number,
+    damage: number,
+    onEnemyKilled?: () => void,
+    ignoreY = false,
+  ): number {
+    let hitCount = 0;
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      const ey = e.group.position.y + (e.archetype === 'drone' || e.archetype === 'turret' ? 0 : 1.1);
+      const d = ignoreY
+        ? Math.hypot(e.group.position.x - center.x, e.group.position.z - center.z)
+        : Math.hypot(e.group.position.x - center.x, ey - center.y, e.group.position.z - center.z);
+      if (d > radius) continue;
+
+      hitCount++;
+      const killed = this.applyDamageToEnemy(e, damage, new THREE.Vector3(e.group.position.x, ey, e.group.position.z));
+      if (killed) onEnemyKilled?.();
+    }
+    return hitCount;
+  }
+
+  /**
+   * Allows Lev Smasher's autocannon bolts to hit and kill surviving enemies in their path.
+   */
+  checkBossProjectileHit(
+    from: Vec3,
+    to: Vec3,
+    damage: number,
+    onEnemyKilled?: () => void,
+  ): boolean {
+    let bestEnemy: EnemyInstance | null = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      const isFloating = e.archetype === 'drone' || e.archetype === 'turret';
+      const minY = isFloating ? e.group.position.y - 0.6 : e.group.position.y;
+      const maxY = isFloating ? e.group.position.y + 0.6 : e.group.position.y + (e.archetype === 'heavy' ? 2.5 : 2.1);
+      const rad = e.archetype === 'heavy' ? 0.72 : 0.58;
+      const res = segmentHitsCylinder(from, to, e.group.position.x, e.group.position.z, minY, maxY, rad);
+      if (res.hit && res.distance < bestDist) {
+        bestDist = res.distance;
+        bestEnemy = e;
+      }
+    }
+
+    if (!bestEnemy) return false;
+    const hitPoint = new THREE.Vector3(
+      bestEnemy.group.position.x,
+      bestEnemy.group.position.y + (bestEnemy.archetype === 'drone' || bestEnemy.archetype === 'turret' ? 0 : 1.2),
+      bestEnemy.group.position.z,
+    );
+    const killed = this.applyDamageToEnemy(bestEnemy, damage, hitPoint);
+    if (killed) onEnemyKilled?.();
+    return true;
   }
 
   private applyDamageToEnemy(enemy: EnemyInstance, damage: number, hitPoint: THREE.Vector3): boolean {
@@ -345,17 +482,18 @@ export class EnemyManager {
     if (enemy.hp <= 0) {
       enemy.alive = false;
       enemy.deathTimer = 1.2;
+      enemy.hackProgress = 0;
       if (enemy.hackBeam) enemy.hackBeam.visible = false;
+      if (enemy.hpBarFill.parent) enemy.hpBarFill.parent.visible = false;
       return true;
     }
     return false;
   }
 
   spawnSparks(point: THREE.Vector3, count: number, colorHex: number): void {
-    const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     for (let i = 0; i < count; i++) {
       const mat = new THREE.MeshBasicMaterial({ color: colorHex });
-      const mesh = new THREE.Mesh(geo, mat);
+      const mesh = new THREE.Mesh(this.sparkGeo, mat);
       mesh.position.copy(point);
       this.scene.add(mesh);
       this.sparks.push({
@@ -378,13 +516,14 @@ export class EnemyManager {
     onEnemyShot: (heavy: boolean) => void,
     onPlayerDamaged: (amount: number, fromHack: boolean) => void,
   ): { maxOverheatProgress: number } {
+    this.animTime += worldDt;
     let maxOverheatProgress = 0;
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
 
       // Billboard HP bar toward camera
-      if (e.hpBarFill.parent) {
+      if (e.hpBarFill.parent && e.hpBarFill.parent.visible) {
         e.hpBarFill.parent.lookAt(cameraPos);
       }
 
@@ -394,11 +533,16 @@ export class EnemyManager {
           e.group.scale.multiplyScalar(Math.max(0.01, 1 - worldDt * 3.5));
         } else {
           e.group.rotation.x = Math.min(Math.PI / 2, e.group.rotation.x + worldDt * 4.5);
-          e.group.position.y = Math.max(e.baseFloorY + 0.18, e.group.position.y - worldDt * 0.5);
+          // Smoothly lift pivot only as corpse tips horizontal so it never pops up on frame 1
+          e.group.position.y = e.baseFloorY + Math.sin(e.group.rotation.x) * 0.18;
         }
         if (e.deathTimer <= 0) {
           this.scene.remove(e.group);
-          if (e.hackBeam) this.scene.remove(e.hackBeam);
+          this.disposeObjectTree(e.group);
+          if (e.hackBeam) {
+            this.scene.remove(e.hackBeam);
+            this.disposeObjectTree(e.hackBeam);
+          }
           this.enemies.splice(i, 1);
         }
         continue;
@@ -431,7 +575,7 @@ export class EnemyManager {
       };
       const hasSight = horizDist < 38 && this.physics.hasLineOfSight(enemyEye, playerEye);
 
-      // Movement AI
+      // Movement AI with enemy-to-enemy and enemy-to-player separation
       if (stats.speed > 0 && horizDist < 42) {
         e.strafeTimer -= worldDt;
         if (e.strafeTimer <= 0) {
@@ -457,6 +601,26 @@ export class EnemyManager {
           moveZ -= dirZ * 0.6;
         }
 
+        // Repel from overlapping allies
+        for (const other of this.enemies) {
+          if (other === e || !other.alive || other.archetype === 'turret') continue;
+          const ox = e.group.position.x - other.group.position.x;
+          const oz = e.group.position.z - other.group.position.z;
+          const oDist = Math.hypot(ox, oz);
+          if (oDist > 0.001 && oDist < 1.55) {
+            const push = (1.55 - oDist) * 1.6;
+            moveX += (ox / oDist) * push;
+            moveZ += (oz / oDist) * push;
+          }
+        }
+
+        // Prevent walking directly through the player's body
+        if (horizDist > 0.001 && horizDist < 1.35) {
+          const push = (1.35 - horizDist) * 2.4;
+          moveX -= dirX * push;
+          moveZ -= dirZ * push;
+        }
+
         const mLen = Math.hypot(moveX, moveZ);
         if (mLen > 0.01) {
           const stepX = (moveX / mLen) * stats.speed * worldDt;
@@ -477,15 +641,14 @@ export class EnemyManager {
         }
 
         if (e.archetype === 'drone') {
-          e.group.position.y = e.baseFloorY + 2.6 + Math.sin(performance.now() * 0.004 + i) * 0.3;
+          e.group.position.y = e.baseFloorY + 2.6 + Math.sin(this.animTime * 4.0 + e.hoverPhase) * 0.3;
         }
       }
 
-      // Netrunner Overheat quickhack channel
+      // Netrunner Overheat quickhack channel (keep reporting progress while cooling down too)
       if (e.archetype === 'netrunner') {
         if (hasSight && horizDist < 26) {
           e.hackProgress += worldDt * 0.24; // ~4.1 seconds to complete unless interrupted
-          maxOverheatProgress = Math.max(maxOverheatProgress, Math.min(1, e.hackProgress));
           if (e.hackBeam) {
             e.hackBeam.visible = true;
             const posAttr = e.hackBeam.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -501,6 +664,9 @@ export class EnemyManager {
           e.hackProgress = Math.max(0, e.hackProgress - worldDt * 0.35);
           if (e.hackBeam) e.hackBeam.visible = false;
         }
+        if (e.hackProgress > 0.01) {
+          maxOverheatProgress = Math.max(maxOverheatProgress, Math.min(1, e.hackProgress));
+        }
       }
 
       // Firing logic
@@ -514,20 +680,35 @@ export class EnemyManager {
       }
     }
 
-    // Update projectiles
+    // Update projectiles with segment-vs-cylinder check before wall occlusion
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= worldDt;
       const step = p.velocity.clone().multiplyScalar(worldDt);
+      const stepLen = step.length();
       const nextPos = p.mesh.position.clone().add(step);
 
-      // Wall hit check
-      const wallRay = this.physics.raycast(
+      const dir = stepLen > 1e-6 ? step.clone().divideScalar(stepLen) : p.velocity.clone().normalize();
+      const wallRay = this.physics.raycastBullets(p.mesh.position, dir, stepLen + 0.12);
+      const playerHit = segmentHitsCylinder(
         p.mesh.position,
-        p.velocity.clone().normalize(),
-        step.length() + 0.15,
-        true,
+        nextPos,
+        playerPos.x,
+        playerPos.z,
+        playerPos.y + 0.15,
+        playerPos.y + 2.05,
+        0.62,
       );
+
+      if (playerHit.hit && (!wallRay.hit || playerHit.distance <= wallRay.distance)) {
+        this.scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        (p.mesh.material as THREE.Material).dispose();
+        this.projectiles.splice(i, 1);
+        onPlayerDamaged(p.damage, false);
+        continue;
+      }
+
       if (wallRay.hit || p.life <= 0) {
         this.scene.remove(p.mesh);
         p.mesh.geometry.dispose();
@@ -537,18 +718,6 @@ export class EnemyManager {
       }
 
       p.mesh.position.copy(nextPos);
-
-      // Player hit check
-      const pdx = p.mesh.position.x - playerPos.x;
-      const pdz = p.mesh.position.z - playerPos.z;
-      const pdy = p.mesh.position.y - (playerPos.y + 1.15);
-      if (pdx * pdx + pdz * pdz < 0.62 * 0.62 && Math.abs(pdy) < 0.95) {
-        onPlayerDamaged(p.damage, false);
-        this.scene.remove(p.mesh);
-        p.mesh.geometry.dispose();
-        (p.mesh.material as THREE.Material).dispose();
-        this.projectiles.splice(i, 1);
-      }
     }
 
     // Update impact sparks
@@ -600,18 +769,30 @@ export class EnemyManager {
   clearAll(): void {
     for (const e of this.enemies) {
       this.scene.remove(e.group);
-      if (e.hackBeam) this.scene.remove(e.hackBeam);
+      this.disposeObjectTree(e.group);
+      if (e.hackBeam) {
+        this.scene.remove(e.hackBeam);
+        this.disposeObjectTree(e.hackBeam);
+      }
     }
     this.enemies = [];
 
     for (const p of this.projectiles) {
       this.scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      (p.mesh.material as THREE.Material).dispose();
     }
     this.projectiles = [];
 
     for (const s of this.sparks) {
       this.scene.remove(s.mesh);
+      (s.mesh.material as THREE.Material).dispose();
     }
     this.sparks = [];
+  }
+
+  dispose(): void {
+    this.clearAll();
+    this.sparkGeo.dispose();
   }
 }

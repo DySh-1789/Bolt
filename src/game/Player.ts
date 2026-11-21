@@ -151,6 +151,10 @@ export class PlayerController {
     this.roll = 0;
     this.grounded = true;
     this.dashTimer = 0;
+    this.shakeIntensity = 0;
+    this.headBobPhase = 0;
+    this.camera.fov = this.baseFov;
+    this.camera.updateProjectionMatrix();
     this.syncCamera(0);
   }
 
@@ -174,12 +178,26 @@ export class PlayerController {
     }
   }
 
+  /**
+   * Smoothly aims the fallen camera toward Lev Smasher so Samir always sees him approaching.
+   */
+  faceTargetInFallenMode(targetX: number, targetZ: number): void {
+    const dx = targetX - this.position.x;
+    const dz = targetZ - this.position.z;
+    if (Math.hypot(dx, dz) > 1e-3) {
+      this.fallenBaseYaw = Math.atan2(-dx, -dz);
+      this.yaw = this.fallenBaseYaw;
+    }
+  }
+
   startKnockback(targetZ: number, targetX = 0): void {
     this.mode = 'KNOCKBACK';
     this.knockbackStart.copy(this.position);
     this.knockbackEnd.set(targetX, this.groundY, targetZ);
     this.knockbackProgress = 0;
     this.velocity.set(0, 0, 0);
+    // Normalize yaw into [-PI, PI] so lerping toward 0 takes the shortest angular path
+    this.yaw = Math.atan2(Math.sin(this.yaw), Math.cos(this.yaw));
     this.addShake(1.0);
   }
 
@@ -189,6 +207,10 @@ export class PlayerController {
 
   addShake(intensity: number): void {
     this.shakeIntensity = Math.min(1.4, this.shakeIntensity + intensity);
+  }
+
+  setMinShake(intensity: number): void {
+    this.shakeIntensity = Math.max(this.shakeIntensity, Math.min(1.4, intensity));
   }
 
   getEyePosition(): Vec3 {
@@ -211,6 +233,7 @@ export class PlayerController {
     dt: number,
     input: InputSnapshot,
     physics: PhysicsWorld,
+    inMovingElevator = false,
   ): {
     dashed: boolean;
     sandevistanChanged: boolean;
@@ -275,11 +298,14 @@ export class PlayerController {
       let moveZ = wishZ * baseSpeed;
 
       if (this.dashTimer > 0) {
+        const dashStepDt = Math.min(dt, this.dashTimer);
         this.dashTimer = Math.max(0, this.dashTimer - dt);
-        moveX = this.dashDir.x * 22.5;
-        moveZ = this.dashDir.z * 22.5;
+        const blend = dt > 0 ? dashStepDt / dt : 1;
+        moveX = this.dashDir.x * 22.5 * blend + moveX * (1 - blend);
+        moveZ = this.dashDir.z * 22.5 * blend + moveZ * (1 - blend);
       }
 
+      const prevFeetY = this.position.y;
       const nextX = this.position.x + moveX * dt;
       const nextZ = this.position.z + moveZ * dt;
       const resolved = physics.resolveCylinderMove(
@@ -287,31 +313,46 @@ export class PlayerController {
         nextX,
         nextZ,
         this.radius,
-        this.position.y,
+        prevFeetY,
         this.height,
       );
       this.position.x = resolved.x;
       this.position.z = resolved.z;
 
-      // Jump & gravity
-      if (input.jumpPressed && this.grounded) {
-        this.velocity.y = 6.9;
-        this.grounded = false;
-      }
-      this.velocity.y -= 18.5 * dt;
-      this.position.y += this.velocity.y * dt;
-      if (this.position.y <= this.groundY) {
+      // Jump & gravity with walkable low-cover support
+      if (inMovingElevator) {
         this.position.y = this.groundY;
         this.velocity.y = 0;
         this.grounded = true;
+      } else {
+        const supportY = physics.getSupportY(
+          this.position.x,
+          this.position.z,
+          this.radius,
+          prevFeetY,
+          this.groundY,
+        );
+        if (input.jumpPressed && this.grounded) {
+          this.velocity.y = 6.9;
+          this.grounded = false;
+        }
+        this.velocity.y -= 18.5 * dt;
+        this.position.y += this.velocity.y * dt;
+        if (this.position.y <= supportY) {
+          this.position.y = supportY;
+          this.velocity.y = 0;
+          this.grounded = true;
+        } else {
+          this.grounded = false;
+        }
       }
 
-      // Headbob & strafe tilt
+      // Headbob & strafe tilt (framerate-independent)
       const moving = wishLen > 0.1 && this.grounded;
       if (moving) {
         this.headBobPhase += dt * (this.state.sandevistanActive ? 13 : 10.5);
       } else {
-        this.headBobPhase *= 0.9;
+        this.headBobPhase *= Math.exp(-6 * dt);
       }
       const targetRoll = -input.moveRight * 0.025;
       this.roll += (targetRoll - this.roll) * Math.min(1, dt * 10);
@@ -319,29 +360,43 @@ export class PlayerController {
       // Gentle cinematic breath & mouse subtle look
       this.yaw -= input.mouseDeltaX * 0.25;
       this.pitch = Math.max(-0.35, Math.min(0.45, this.pitch - input.mouseDeltaY * 0.25));
-      this.roll *= 0.9;
+      this.roll *= Math.exp(-6 * dt);
     } else if (this.mode === 'KNOCKBACK') {
-      // Launched backwards by Lev Smasher!
+      // Launched backwards by Lev Smasher with physics collision resolution so Samir doesn't clip through pillars
+      const prevT = this.knockbackProgress;
       this.knockbackProgress = Math.min(1, this.knockbackProgress + dt * 0.95);
       const t = this.knockbackProgress;
       const easeOut = 1 - Math.pow(1 - t, 3);
-      this.position.x = THREE.MathUtils.lerp(this.knockbackStart.x, this.knockbackEnd.x, easeOut);
-      this.position.z = THREE.MathUtils.lerp(this.knockbackStart.z, this.knockbackEnd.z, easeOut);
-      // Parabolic flight arc with heavy landing bounce
-      const arc = t < 0.72 ? Math.sin((t / 0.72) * Math.PI) * 2.15 : Math.sin(((t - 0.72) / 0.28) * Math.PI) * 0.28;
-      this.position.y = this.groundY + Math.max(0, arc);
+      const prevEase = 1 - Math.pow(1 - prevT, 3);
 
-      // Camera looks back at Lev Smasher near doors (-Z) while tumbling
-      this.yaw = THREE.MathUtils.lerp(this.yaw, 0, dt * 6);
-      this.pitch = Math.sin(t * Math.PI) * 0.38 - (t > 0.7 ? (1 - t) * 0.4 : 0);
-      this.roll = Math.sin(t * Math.PI * 1.4) * 0.55 * (1 - t * 0.65);
+      const stepDx = (this.knockbackEnd.x - this.knockbackStart.x) * (easeOut - prevEase);
+      const stepDz = (this.knockbackEnd.z - this.knockbackStart.z) * (easeOut - prevEase);
+      const arc = t < 0.72 ? Math.sin((t / 0.72) * Math.PI) * 2.15 : Math.sin(((t - 0.72) / 0.28) * Math.PI) * 0.28;
+      const nextY = this.groundY + Math.max(0, arc);
+
+      const resolved = physics.resolveCylinderMove(
+        this.position,
+        this.position.x + stepDx,
+        this.position.z + stepDz,
+        this.radius,
+        nextY,
+        this.height,
+      );
+      this.position.x = resolved.x;
+      this.position.z = resolved.z;
+      this.position.y = nextY;
+
+      // Camera looks back at Lev Smasher near doors (-Z) while tumbling, settling level at t = 1
+      this.yaw = THREE.MathUtils.lerp(this.yaw, 0, Math.min(1, dt * 6));
+      this.pitch = Math.sin(t * Math.PI) * 0.38;
+      this.roll = Math.sin(t * Math.PI) * 0.52 * (1 - t);
     } else if (this.mode === 'FALLEN') {
       // Heavily wounded Samir collapses to the floor and looks up at Smasher
       this.fallenTime += dt;
       const collapseT = Math.min(1, this.fallenTime / 1.15);
       const smooth = collapseT * collapseT * (3 - 2 * collapseT);
       this.roll = THREE.MathUtils.lerp(0, 1.08, smooth); // ~62 degrees sideways tilt
-      this.pitch = THREE.MathUtils.lerp(this.pitch, 0.28, dt * 2.5);
+      this.pitch = THREE.MathUtils.lerp(this.pitch, 0.28, Math.min(1, dt * 2.5));
       this.yaw = this.fallenBaseYaw + Math.sin(this.fallenTime * 0.9) * 0.04;
     } else if (this.mode === 'OPERATING_TABLE') {
       // Lying on operating table looking upward toward surgical light and Rodion

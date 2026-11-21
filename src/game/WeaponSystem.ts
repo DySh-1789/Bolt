@@ -237,7 +237,8 @@ export class WeaponSystem {
     this.muzzleFlashMesh.rotation.z = Math.random() * Math.PI;
     this.muzzleFlashMesh.scale.setScalar(0.8 + Math.random() * 0.5);
 
-    // Spawn luminous bullet tracer from muzzle in world space to hitPoint
+    // Ensure camera and viewmodel world matrices reflect current-frame movement/look before reading muzzle position
+    this.camera.updateMatrixWorld(true);
     const muzzleWorld = new THREE.Vector3();
     this.muzzleFlashMesh.getWorldPosition(muzzleWorld);
     this.spawnTracer(muzzleWorld, hitPoint, 0xffaa33);
@@ -293,17 +294,38 @@ export class WeaponSystem {
     });
   }
 
+  private disposeGroup(group: THREE.Object3D, excludeMats?: Set<THREE.Material>): void {
+    const disposedMats = new Set<THREE.Material>();
+    group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (excludeMats?.has(m)) continue;
+          if (!disposedMats.has(m)) {
+            disposedMats.add(m);
+            m.dispose();
+          }
+        }
+      }
+    });
+  }
+
   /**
-   * Drops Samir's Malorian onto the floor during the Lev Smasher defeat cutscene.
+   * Drops Samir's Malorian onto the floor in front of where he is facing during the defeat cutscene.
    */
-  spawnDroppedWeapon(position: THREE.Vector3, yaw: number): void {
+  spawnDroppedWeapon(position: THREE.Vector3, yaw: number, floorY = position.y): void {
     this.clearDroppedWeapon();
     const prop = new THREE.Group();
     this.buildMalorianMesh(prop);
+    const forwardX = -Math.sin(yaw);
+    const forwardZ = -Math.cos(yaw);
+    const rightX = Math.cos(yaw);
+    const rightZ = -Math.sin(yaw);
     prop.position.set(
-      position.x + Math.cos(yaw) * 0.85,
-      position.y + 0.06,
-      position.z - Math.sin(yaw) * 0.85 - 1.1,
+      position.x + forwardX * 1.15 + rightX * 0.55,
+      floorY + 0.06,
+      position.z + forwardZ * 1.15 + rightZ * 0.55,
     );
     prop.rotation.set(0.1, yaw + 0.9, Math.PI / 2 - 0.08);
     prop.scale.setScalar(1.3);
@@ -314,8 +336,34 @@ export class WeaponSystem {
   clearDroppedWeapon(): void {
     if (this.droppedGun) {
       this.scene.remove(this.droppedGun);
+      this.disposeGroup(this.droppedGun, new Set([this.ammoStripMat]));
       this.droppedGun = null;
     }
+  }
+
+  resetVisuals(): void {
+    this.recoilKick = 0;
+    this.recoilPitch = 0;
+    this.introSpinTimer = 0;
+    this.meleeAnimTimer = 0;
+    this.muzzleFlashTimer = 0;
+    this.muzzleLight.intensity = 0;
+    (this.muzzleFlashMesh.material as THREE.MeshBasicMaterial).opacity = 0;
+    this.gunPivot.position.set(0, 0, 0);
+    this.gunPivot.rotation.set(0, 0, 0);
+
+    for (const tr of this.tracers) {
+      this.scene.remove(tr.line);
+      tr.line.geometry.dispose();
+      (tr.line.material as THREE.Material).dispose();
+    }
+    this.tracers = [];
+
+    for (const fl of this.flames) {
+      this.scene.remove(fl.group);
+      this.disposeGroup(fl.group);
+    }
+    this.flames = [];
   }
 
   update(dt: number, isMoving: boolean): { reloadCompleted: boolean } {
@@ -353,6 +401,14 @@ export class WeaponSystem {
     const swayX = Math.cos(this.swayTime) * (isMoving ? 0.012 : 0.0025);
     const swayY = Math.abs(Math.sin(this.swayTime)) * (isMoving ? 0.012 : 0.002);
 
+    // Always tick animation timers so melee never replays late after a reload completes
+    if (this.introSpinTimer > 0) {
+      this.introSpinTimer = Math.max(0, this.introSpinTimer - dt);
+    }
+    if (this.meleeAnimTimer > 0) {
+      this.meleeAnimTimer = Math.max(0, this.meleeAnimTimer - dt);
+    }
+
     // Reload / Intro spin / Flame melee animation angles
     let rotX = this.recoilPitch;
     let rotY = 0;
@@ -361,22 +417,20 @@ export class WeaponSystem {
     let offsetZ = this.recoilKick;
 
     if (this.introSpinTimer > 0) {
-      this.introSpinTimer = Math.max(0, this.introSpinTimer - dt);
       const p = 1 - this.introSpinTimer / 1.15;
       rotX += Math.PI * 2 * (1 - Math.pow(1 - p, 2));
       offsetY += Math.sin(p * Math.PI) * 0.08;
-    } else if (this.state.reloading) {
-      const p = 1 - this.state.reloadTimer / this.state.reloadDuration;
-      rotX += Math.sin(p * Math.PI) * -0.95;
-      rotZ += Math.sin(p * Math.PI * 2) * 0.48;
-      offsetY -= Math.sin(p * Math.PI) * 0.14;
     } else if (this.meleeAnimTimer > 0) {
-      this.meleeAnimTimer = Math.max(0, this.meleeAnimTimer - dt);
       const p = 1 - this.meleeAnimTimer / 0.42;
       const swing = Math.sin(p * Math.PI);
       rotY += swing * 0.72;
       rotZ -= swing * 0.45;
       offsetZ -= swing * 0.18;
+    } else if (this.state.reloading) {
+      const p = 1 - this.state.reloadTimer / this.state.reloadDuration;
+      rotX += Math.sin(p * Math.PI) * -0.95;
+      rotZ += Math.sin(p * Math.PI * 2) * 0.48;
+      offsetY -= Math.sin(p * Math.PI) * 0.14;
     }
 
     this.gunPivot.position.set(swayX, -swayY + offsetY, offsetZ);
@@ -404,6 +458,7 @@ export class WeaponSystem {
       fl.group.scale.addScalar(dt * 3.8);
       if (fl.life <= 0) {
         this.scene.remove(fl.group);
+        this.disposeGroup(fl.group);
         this.flames.splice(i, 1);
       } else {
         const opacity = fl.life / fl.maxLife;
@@ -416,5 +471,12 @@ export class WeaponSystem {
     }
 
     return res;
+  }
+
+  dispose(): void {
+    this.resetVisuals();
+    this.clearDroppedWeapon();
+    this.camera.remove(this.viewModel);
+    this.disposeGroup(this.viewModel);
   }
 }

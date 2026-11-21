@@ -42,10 +42,12 @@ const PORTRAIT_SVGS: Record<SpeakerId, string> = {
 
 export class HUD {
   private rootHud: HTMLElement;
+  private vitalsPanel: HTMLElement;
   private titleScreen: HTMLElement;
   private pauseScreen: HTMLElement;
   private deathScreen: HTMLElement;
   private creditsScreen: HTMLElement;
+  private creditsQuote: HTMLElement;
 
   private hpFill: HTMLElement;
   private hpValue: HTMLElement;
@@ -94,15 +96,18 @@ export class HUD {
   private hitmarkerTimer = 0;
   private activeSubtitleTimer = 0;
   private callbacks: HudCallbacks;
+  private cleanups: Array<() => void> = [];
 
   constructor(callbacks: HudCallbacks) {
     this.callbacks = callbacks;
 
     this.rootHud = this.el('hud');
+    this.vitalsPanel = this.el('vitals-panel');
     this.titleScreen = this.el('title-screen');
     this.pauseScreen = this.el('pause-screen');
     this.deathScreen = this.el('death-screen');
     this.creditsScreen = this.el('credits-screen');
+    this.creditsQuote = this.el('credits-quote');
 
     this.hpFill = this.el('hp-fill');
     this.hpValue = this.el('hp-value');
@@ -157,16 +162,21 @@ export class HUD {
     return node;
   }
 
+  private addListener(target: HTMLElement, type: string, handler: EventListener): void {
+    target.addEventListener(type, handler);
+    this.cleanups.push(() => target.removeEventListener(type, handler));
+  }
+
   private bindButtons(): void {
-    this.el('btn-start').addEventListener('click', () => this.callbacks.onStartGame());
-    this.el('btn-resume').addEventListener('click', () => this.callbacks.onResumeGame());
-    this.el('btn-restart').addEventListener('click', () => this.callbacks.onRestartGame());
-    this.el('btn-retry').addEventListener('click', () => this.callbacks.onRetryCheckpoint());
-    this.el('btn-replay').addEventListener('click', () => this.callbacks.onRestartGame());
+    this.addListener(this.el('btn-start'), 'click', () => this.callbacks.onStartGame());
+    this.addListener(this.el('btn-resume'), 'click', () => this.callbacks.onResumeGame());
+    this.addListener(this.el('btn-restart'), 'click', () => this.callbacks.onRestartGame());
+    this.addListener(this.el('btn-retry'), 'click', () => this.callbacks.onRetryCheckpoint());
+    this.addListener(this.el('btn-replay'), 'click', () => this.callbacks.onRestartGame());
 
     const sensSlider = this.el('slider-sens') as HTMLInputElement;
     const sensVal = this.el('sens-val');
-    sensSlider.addEventListener('input', () => {
+    this.addListener(sensSlider, 'input', () => {
       const v = Number(sensSlider.value);
       sensVal.textContent = `${v.toFixed(1)}x`;
       this.callbacks.onSensitivityChange(v);
@@ -174,7 +184,7 @@ export class HUD {
 
     const volSlider = this.el('slider-vol') as HTMLInputElement;
     const volVal = this.el('vol-val');
-    volSlider.addEventListener('input', () => {
+    this.addListener(volSlider, 'input', () => {
       const v = Number(volSlider.value);
       volVal.textContent = `${v}%`;
       this.callbacks.onVolumeChange(v / 100);
@@ -190,6 +200,7 @@ export class HUD {
   }
 
   setCombatHudVisible(visible: boolean): void {
+    this.vitalsPanel.classList.toggle('hidden', !visible);
     this.crosshairWrap.classList.toggle('hidden', !visible);
     this.weaponPanel.classList.toggle('hidden', !visible);
   }
@@ -320,6 +331,12 @@ export class HUD {
     this.el('stat-accuracy').textContent = `${acc}%`;
     this.el('stat-headshots').textContent = String(stats.headshots);
     this.el('stat-boss-dmg').textContent = String(Math.round(stats.damageDealtToSmasher));
+    if (stats.chosenFinaleLine) {
+      this.creditsQuote.textContent = `Последняя реплика Самира: ${stats.chosenFinaleLine}`;
+      this.creditsQuote.classList.remove('hidden');
+    } else {
+      this.creditsQuote.classList.add('hidden');
+    }
   }
 
   update(dt: number): void {
@@ -336,5 +353,12 @@ export class HUD {
         this.clearSubtitle();
       }
     }
+  }
+
+  dispose(): void {
+    for (const cleanup of this.cleanups) {
+      cleanup();
+    }
+    this.cleanups = [];
   }
 }

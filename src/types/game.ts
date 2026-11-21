@@ -37,6 +37,7 @@ export interface AABB {
   maxZ: number;
   active: boolean;
   blocksSight?: boolean;
+  blocksBullets?: boolean;
   isFloor?: boolean;
 }
 

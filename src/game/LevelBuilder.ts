@@ -29,6 +29,7 @@ interface FlyingAv {
 export interface SupplyCrate {
   id: string;
   mesh: THREE.Group;
+  glowMat: THREE.MeshStandardMaterial;
   x: number;
   y: number;
   z: number;
@@ -49,6 +50,8 @@ export class LevelBuilder {
   private alarmLights: THREE.PointLight[] = [];
   private flyingAvs: FlyingAv[] = [];
   private councilDoorGlowMat: THREE.MeshStandardMaterial | null = null;
+  private keyDir: THREE.DirectionalLight | null = null;
+  private animTime = 0;
 
   private physics: PhysicsWorld;
   private textures: ProceduralTextures;
@@ -67,15 +70,34 @@ export class LevelBuilder {
     const ambient = new THREE.AmbientLight(0x303e5c, 0.3);
     this.root.add(ambient);
 
-    const keyDir = new THREE.DirectionalLight(0xa8c4eb, 0.45);
-    keyDir.position.set(14, 72, 12);
-    this.root.add(keyDir);
+    const keyDir = new THREE.DirectionalLight(0xa8c4eb, 0.55);
+    keyDir.position.set(10, 12, 8);
+    keyDir.castShadow = true;
+    keyDir.shadow.mapSize.set(1024, 1024);
+    keyDir.shadow.camera.near = 1;
+    keyDir.shadow.camera.far = 32;
+    keyDir.shadow.camera.left = -24;
+    keyDir.shadow.camera.right = 24;
+    keyDir.shadow.camera.top = 24;
+    keyDir.shadow.camera.bottom = -24;
+    keyDir.shadow.bias = -0.0012;
+    this.root.add(keyDir, keyDir.target);
+    this.keyDir = keyDir;
 
     this.buildAtrium();
     this.buildElevator1();
     this.buildServerRoom();
     this.buildElevator2();
     this.buildCouncilHall();
+  }
+
+  updateShadowAnchor(x: number, floorY: number, z: number, enabled = true): void {
+    if (!this.keyDir) return;
+    this.keyDir.castShadow = enabled;
+    if (!enabled) return;
+    this.keyDir.target.position.set(x, floorY, z);
+    this.keyDir.position.set(x + 8, floorY + 13, z + 6);
+    this.keyDir.target.updateMatrixWorld();
   }
 
   private addBoxMeshAndCollider(
@@ -89,6 +111,7 @@ export class LevelBuilder {
     material: THREE.Material,
     collide = true,
     blocksSight = true,
+    blocksBullets = true,
   ): THREE.Mesh {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
     mesh.position.set(cx, cy, cz);
@@ -96,7 +119,7 @@ export class LevelBuilder {
     mesh.castShadow = sy > 1.5 && sx < 8 && sz < 8;
     this.root.add(mesh);
     if (collide) {
-      this.physics.addStaticBox(id, cx, cy, cz, sx, sy, sz, blocksSight);
+      this.physics.addStaticBox(id, cx, cy, cz, sx, sy, sz, blocksSight, blocksBullets);
     }
     return mesh;
   }
@@ -161,6 +184,8 @@ export class LevelBuilder {
 
     const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.72, 0.8), bodyMat);
     base.position.y = 0.36;
+    base.castShadow = true;
+    base.receiveShadow = true;
     group.add(base);
 
     const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.1), glowMat);
@@ -177,7 +202,9 @@ export class LevelBuilder {
     group.position.set(x, baseY, z);
     this.root.add(group);
 
-    this.supplyCrates.push({ id, mesh: group, x, y: baseY, z, used: false });
+    this.physics.addStaticBox(`${id}_box`, x, baseY + 0.36, z, 1.1, 0.72, 0.8, false, true);
+
+    this.supplyCrates.push({ id, mesh: group, glowMat, x, y: baseY, z, used: false });
     this.interactables.push({
       id,
       label: '[E] ПОПОЛНИТЬ MAXDOC И БРОНЮ',
@@ -265,6 +292,7 @@ export class LevelBuilder {
     floor.position.set(0, y0, -5);
     floor.receiveShadow = true;
     this.root.add(floor);
+    this.physics.addStaticBox('atrium_floor', 0, y0 - 0.25, -5, 32, 0.5, 46, true, true, true);
 
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(32, 46),
@@ -273,6 +301,7 @@ export class LevelBuilder {
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, y0 + 11, -5);
     this.root.add(ceiling);
+    this.physics.addStaticBox('atrium_ceiling', 0, y0 + 11.25, -5, 32, 0.5, 46, true, true, true);
 
     // Outer walls
     this.addBoxMeshAndCollider('atrium_south', 0, y0 + 5.5, 18.5, 33, 11, 1, wallMat);
@@ -439,6 +468,7 @@ export class LevelBuilder {
     floor.position.set(0, y0, -59);
     floor.receiveShadow = true;
     this.root.add(floor);
+    this.physics.addStaticBox('srv_floor', 0, y0 - 0.25, -59, 28, 0.5, 42, true, true, true);
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(28, 42),
@@ -447,6 +477,7 @@ export class LevelBuilder {
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, y0 + 8, -59);
     this.root.add(ceil);
+    this.physics.addStaticBox('srv_ceiling', 0, y0 + 8.25, -59, 28, 0.5, 42, true, true, true);
 
     // South wall with Elevator 1 top exit (X: -3.5..3.5, Y: y0..y0+5.2)
     this.addBoxMeshAndCollider('srv_south_l', -8.85, y0 + 4, -38, 10.7, 8, 1, wallMat);
@@ -520,7 +551,7 @@ export class LevelBuilder {
     laserGroup.add(field);
     this.root.add(laserGroup);
     this.laserBarrierGroup = laserGroup;
-    this.physics.addStaticBox('door_laser', 0, y0 + 2.8, -79.2, 8.2, 5.6, 0.6, false);
+    this.physics.addStaticBox('door_laser', 0, y0 + 2.8, -79.2, 8.2, 5.6, 0.6, false, false);
 
     // Hack terminal next to the laser barrier
     const termGroup = new THREE.Group();
@@ -627,6 +658,7 @@ export class LevelBuilder {
     floor.position.set(0, y0, -116);
     floor.receiveShadow = true;
     this.root.add(floor);
+    this.physics.addStaticBox('hall_floor', 0, y0 - 0.25, -116, 36, 0.5, 52, true, true, true);
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(36, 52),
@@ -635,14 +667,15 @@ export class LevelBuilder {
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, y0 + 14, -116);
     this.root.add(ceil);
+    this.physics.addStaticBox('hall_ceiling', 0, y0 + 14.25, -116, 36, 0.5, 52, true, true, true);
 
-    // South wall with Elevator 2 top exit (X: -4.2..4.2, Y: y0..y0+6.2)
+    // South wall with Elevator 2 top exit (X: -4.2..4.2, Y: y0..y0+5.4 matching elev2 cabinHeight)
     this.addBoxMeshAndCollider('hall_south_l', -11.1, y0 + 7, -90, 13.8, 14, 1, wallMat);
     this.addBoxMeshAndCollider('hall_south_r', 11.1, y0 + 7, -90, 13.8, 14, 1, wallMat);
-    this.addBoxMeshAndCollider('hall_south_top', 0, y0 + 10.1, -90, 8.8, 7.8, 1, wallMat);
+    this.addBoxMeshAndCollider('hall_south_top', 0, y0 + 9.7, -90, 8.8, 8.6, 1, wallMat);
 
     // Elevator 2 top exit doors (open when elevator arrives, seal shut on Lev Smasher ambush!)
-    this.createSlidingDoor('door_elev2_top', -90, y0, 8.4, 6.2, 0xff003c);
+    this.createSlidingDoor('door_elev2_top', -90, y0, 8.4, 5.4, 0xff003c);
 
     // East solid corporate wall
     this.addBoxMeshAndCollider('hall_east', 18.5, y0 + 7, -116, 1, 14, 53, wallMat);
@@ -838,16 +871,27 @@ export class LevelBuilder {
     const crate = this.supplyCrates.find((c) => c.id === id);
     if (crate) {
       crate.used = true;
-      crate.mesh.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-          if (child.material.emissiveIntensity > 0) {
-            child.material.emissiveIntensity = 0.15;
-            child.material.color.setHex(0x334444);
-          }
-        }
-      });
+      crate.glowMat.emissiveIntensity = 0.15;
+      crate.glowMat.color.setHex(0x334444);
+      crate.glowMat.emissive.setHex(0x112222);
     }
     this.setInteractableEnabled(id, false);
+  }
+
+  private restoreCrateVisual(crate: SupplyCrate): void {
+    crate.used = false;
+    crate.glowMat.emissiveIntensity = 1.6;
+    crate.glowMat.color.setHex(0x00ff88);
+    crate.glowMat.emissive.setHex(0x00ff88);
+    this.setInteractableEnabled(crate.id, true);
+  }
+
+  resetCratesByPrefix(prefix: string): void {
+    for (const crate of this.supplyCrates) {
+      if (crate.id.startsWith(prefix)) {
+        this.restoreCrateVisual(crate);
+      }
+    }
   }
 
   resetInteractiveState(): void {
@@ -865,29 +909,30 @@ export class LevelBuilder {
     this.elev2.reset();
 
     for (const crate of this.supplyCrates) {
-      crate.used = false;
-      this.setInteractableEnabled(crate.id, true);
+      this.restoreCrateVisual(crate);
     }
   }
 
-  update(dt: number, totalTime: number): void {
-    // Rotate Atrium hologram monument
+  update(worldDt: number, doorDt = worldDt): void {
+    this.animTime += worldDt;
+
+    // Rotate Atrium hologram monument (respects Sandevistan time scale)
     for (const holo of this.hologramSpinners) {
-      holo.rotation.y += dt * 0.65;
-      holo.position.y = FLOOR_ATRIUM_Y + 4.3 + Math.sin(totalTime * 1.9) * 0.22;
+      holo.rotation.y += worldDt * 0.65;
+      holo.position.y = FLOOR_ATRIUM_Y + 4.3 + Math.sin(this.animTime * 1.9) * 0.22;
     }
 
     // Pulse alarm lights
     for (let i = 0; i < this.alarmLights.length; i++) {
-      this.alarmLights[i].intensity = 24 + Math.sin(totalTime * 5.2 + i) * 7;
+      this.alarmLights[i].intensity = 24 + Math.sin(this.animTime * 5.2 + i) * 7;
     }
 
-    // Animate sliding doors
+    // Animate sliding doors in sync with elevator timing
     for (const door of this.doors.values()) {
       const target = door.isOpen ? 1 : 0;
       if (Math.abs(door.progress - target) > 0.001) {
         const dir = target > door.progress ? 1 : -1;
-        door.progress = Math.max(0, Math.min(1, door.progress + dir * dt * 1.6));
+        door.progress = Math.max(0, Math.min(1, door.progress + dir * doorDt * 1.6));
         door.leftLeaf.position.x = door.closedLeftX - door.openOffset * door.progress;
         door.rightLeaf.position.x = door.closedRightX + door.openOffset * door.progress;
       }
@@ -895,12 +940,30 @@ export class LevelBuilder {
 
     // Animate flying Night City AVs outside Floor 95 panoramic glass
     for (const av of this.flyingAvs) {
-      av.mesh.position.z += av.speed * dt;
+      av.mesh.position.z += av.speed * worldDt;
       if (av.speed > 0 && av.mesh.position.z > av.maxZ) {
         av.mesh.position.z = av.minZ;
       } else if (av.speed < 0 && av.mesh.position.z < av.minZ) {
         av.mesh.position.z = av.maxZ;
       }
     }
+  }
+
+  dispose(): void {
+    this.elev1.dispose();
+    this.elev2.dispose();
+    const disposedMats = new Set<THREE.Material>();
+    this.root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.geometry.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (!disposedMats.has(m)) {
+            disposedMats.add(m);
+            m.dispose();
+          }
+        }
+      }
+    });
   }
 }

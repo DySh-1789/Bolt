@@ -153,7 +153,7 @@ export class ProceduralTextures {
     secondaryColor = '#00f0ff',
     bg = '#070810',
   ): THREE.CanvasTexture {
-    const key = `sign_${title}_${subtitle}_${primaryColor}_${secondaryColor}`;
+    const key = `sign_${title}_${subtitle}_${primaryColor}_${secondaryColor}_${bg}`;
     const existing = this.cache.get(key);
     if (existing) return existing;
 

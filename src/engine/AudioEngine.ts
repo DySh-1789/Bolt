@@ -17,6 +17,7 @@ export class AudioEngine {
   private stepTimer: number | null = null;
   private stepIndex = 0;
   private sandevistanPitchScale = 1.0;
+  private paused = false;
 
   // D minor cyberpunk bassline (Hz)
   private readonly bassPatternCombat = [
@@ -33,6 +34,7 @@ export class AudioEngine {
   ];
 
   unlock(): void {
+    this.paused = false;
     if (this.ctx) {
       if (this.ctx.state === 'suspended') {
         void this.ctx.resume();
@@ -63,6 +65,16 @@ export class AudioEngine {
 
     this.noiseBuffer = this.createNoiseBuffer(ctx, 1.5);
     this.startSequencer();
+  }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    if (!this.ctx) return;
+    if (paused && this.ctx.state === 'running') {
+      void this.ctx.suspend();
+    } else if (!paused && this.ctx.state === 'suspended') {
+      void this.ctx.resume();
+    }
   }
 
   private createNoiseBuffer(ctx: AudioContext, durationSec: number): AudioBuffer {
@@ -99,7 +111,7 @@ export class AudioEngine {
   }
 
   private tickMusic(): void {
-    if (!this.ctx || !this.musicGain || this.ctx.state !== 'running') return;
+    if (this.paused || !this.ctx || !this.musicGain || this.ctx.state !== 'running') return;
     if (this.intensity === 'silent') return;
 
     const now = this.ctx.currentTime;
@@ -109,7 +121,7 @@ export class AudioEngine {
     if (this.intensity === 'operating') {
       // Sparse sterile heartbeat & eerie dark drone
       if (step === 0 || step === 8) {
-        this.playEcgBeep(step === 0 ? 880 : 840, 0.065);
+        this.playEcgBeep(step === 0 ? 880 : 840, 0.14, true);
       }
       if (step === 0) {
         this.playDrone(55, 1.8, 0.14);
@@ -584,8 +596,9 @@ export class AudioEngine {
     });
   }
 
-  playEcgBeep(freq = 880, volume = 0.09): void {
-    if (!this.ctx || !this.sfxGain) return;
+  playEcgBeep(freq = 880, volume = 0.09, toMusic = false): void {
+    const dest = toMusic ? this.musicGain : this.sfxGain;
+    if (!this.ctx || !dest) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -594,7 +607,7 @@ export class AudioEngine {
     gain.gain.setValueAtTime(volume, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
     osc.connect(gain);
-    gain.connect(this.sfxGain);
+    gain.connect(dest);
     osc.start(now);
     osc.stop(now + 0.1);
   }
@@ -674,6 +687,7 @@ export class AudioEngine {
   playElevatorRide(durationSec = 4.2): void {
     if (!this.ctx || !this.sfxGain) return;
     const now = this.ctx.currentTime;
+    const dur = Math.max(1.0, durationSec);
 
     // Low mechanical maglev hum with smooth acceleration and deceleration pitch curve
     const hum = this.ctx.createOscillator();
@@ -683,23 +697,25 @@ export class AudioEngine {
 
     hum.type = 'sawtooth';
     hum.frequency.setValueAtTime(48, now);
-    hum.frequency.linearRampToValueAtTime(74, now + durationSec * 0.28);
-    hum.frequency.setValueAtTime(74, now + durationSec * 0.72);
-    hum.frequency.linearRampToValueAtTime(44, now + durationSec);
+    hum.frequency.linearRampToValueAtTime(74, now + dur * 0.28);
+    hum.frequency.setValueAtTime(74, now + dur * 0.72);
+    hum.frequency.linearRampToValueAtTime(44, now + dur);
 
     whine.type = 'sine';
     whine.frequency.setValueAtTime(160, now);
-    whine.frequency.linearRampToValueAtTime(340, now + durationSec * 0.3);
-    whine.frequency.setValueAtTime(340, now + durationSec * 0.72);
-    whine.frequency.linearRampToValueAtTime(140, now + durationSec);
+    whine.frequency.linearRampToValueAtTime(340, now + dur * 0.3);
+    whine.frequency.setValueAtTime(340, now + dur * 0.72);
+    whine.frequency.linearRampToValueAtTime(140, now + dur);
 
     filter.type = 'lowpass';
     filter.frequency.value = 460;
 
+    const fadeInEnd = Math.min(0.35, dur * 0.25);
+    const fadeOutStart = Math.max(fadeInEnd + 0.05, dur - 0.55);
     gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.16, now + 0.35);
-    gain.gain.setValueAtTime(0.15, now + durationSec - 0.55);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
+    gain.gain.linearRampToValueAtTime(0.16, now + fadeInEnd);
+    gain.gain.setValueAtTime(0.15, now + fadeOutStart);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
     hum.connect(filter);
     whine.connect(filter);
@@ -708,8 +724,8 @@ export class AudioEngine {
 
     hum.start(now);
     whine.start(now);
-    hum.stop(now + durationSec + 0.05);
-    whine.stop(now + durationSec + 0.05);
+    hum.stop(now + dur + 0.05);
+    whine.stop(now + dur + 0.05);
   }
 
   dispose(): void {

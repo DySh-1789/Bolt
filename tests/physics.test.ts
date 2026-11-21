@@ -65,4 +65,49 @@ describe('PhysicsWorld', () => {
     // Laser field does not block sight
     expect(world.hasLineOfSight({ x: 0, y: 1.5, z: -4 }, { x: 0, y: 1.5, z: -9 })).toBe(true);
   });
+
+  it('blocks bullets on waist-high cover while allowing bullets through laser barriers', () => {
+    const world = new PhysicsWorld();
+    world.addStaticBox('waist_cover', 0, 0.65, -5, 4, 1.3, 1, false, true);
+    world.addStaticBox('laser_field', 0, 2.5, -10, 6, 5, 0.5, false, false);
+
+    // Line-of-sight passes over waist-high cover
+    expect(world.hasLineOfSight({ x: 0, y: 1.0, z: 0 }, { x: 0, y: 1.0, z: -8 })).toBe(true);
+
+    // Bullets are blocked by waist-high cover
+    const coverHit = world.raycastBullets({ x: 0, y: 1.0, z: 0 }, { x: 0, y: 0, z: -1 }, 20);
+    expect(coverHit.hit).toBe(true);
+    expect(coverHit.colliderId).toBe('waist_cover');
+
+    // Bullets pass through laser barrier when firing above waist-high cover
+    const laserShot = world.raycastBullets({ x: 0, y: 2.0, z: 0 }, { x: 0, y: 0, z: -1 }, 20);
+    expect(laserShot.hit).toBe(false);
+  });
+
+  it('handles axis-aligned raycasts lying on a collider face without NaN', () => {
+    const world = new PhysicsWorld();
+    world.addStaticBox('wall', 0, 2, -10, 10, 4, 1); // minY = 0, maxY = 4
+
+    const hit = world.raycast({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }, 50);
+    expect(hit.hit).toBe(true);
+    expect(hit.colliderId).toBe('wall');
+    expect(Number.isNaN(hit.distance)).toBe(false);
+    expect(hit.distance).toBeCloseTo(9.5, 3);
+  });
+
+  it('provides cover landing support and pushes overlaps out along the shortest axis', () => {
+    const world = new PhysicsWorld();
+    world.addStaticBox('wide_desk', 0, 0.65, -5, 4.4, 1.3, 1.1, false, true);
+
+    // Feet near top of desk -> lands on top at y = 1.3
+    expect(world.getSupportY(0, -5, 0.45, 1.28, 0)).toBeCloseTo(1.3, 3);
+    // Feet on floor -> does not snap up onto 1.3m desk
+    expect(world.getSupportY(0, -5, 0.45, 0, 0)).toBe(0);
+
+    // Pre-existing overlap inside wide desk pushes out along shorter Z axis, not 2.6m sideways along X
+    const pushed = world.resolveCylinderMove({ x: 0, y: 0, z: -4.7 }, 0, -4.7, 0.45, 0, 1.8);
+    expect(pushed.collided).toBe(true);
+    expect(Math.abs(pushed.x)).toBeLessThan(0.1);
+    expect(pushed.z).toBeGreaterThanOrEqual(-4.0);
+  });
 });

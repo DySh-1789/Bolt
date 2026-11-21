@@ -88,6 +88,7 @@ interface BossProjectile {
 interface TelegraphMissile {
   ring: THREE.Mesh;
   missile: THREE.Mesh;
+  startPos: THREE.Vector3;
   targetPos: THREE.Vector3;
   timer: number;
   maxTimer: number;
@@ -95,6 +96,7 @@ interface TelegraphMissile {
 
 interface ShockwaveRing {
   mesh: THREE.Mesh;
+  prevRadius: number;
   radius: number;
   maxRadius: number;
   damagedPlayer: boolean;
@@ -120,8 +122,35 @@ export interface BossCallbacks {
   onMissileExplode: () => void;
   onRoar: () => void;
   onPlayerDamaged: (amount: number, knockShake: number) => void;
-  onPhase2Started: () => void;
-  onFinisherTriggered: () => void;
+  onProjectileHitEnemy?: (from: Vec3, to: Vec3, damage: number) => boolean;
+  onAreaDamageEnemies?: (center: Vec3, radius: number, damage: number, ignoreY?: boolean) => void;
+}
+
+function segmentHitsCylinder(
+  from: Vec3,
+  to: Vec3,
+  cx: number,
+  cz: number,
+  minY: number,
+  maxY: number,
+  radius: number,
+): { hit: boolean; distance: number } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const lenXZSq = dx * dx + dz * dz;
+  let t = 0;
+  if (lenXZSq > 1e-8) {
+    t = Math.max(0, Math.min(1, ((cx - from.x) * dx + (cz - from.z) * dz) / lenXZSq));
+  }
+  const px = from.x + dx * t;
+  const py = from.y + dy * t;
+  const pz = from.z + dz * t;
+  const distSq = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
+  if (distSq <= radius * radius && py >= minY && py <= maxY) {
+    return { hit: true, distance: t * Math.hypot(dx, dy, dz) };
+  }
+  return { hit: false, distance: Number.POSITIVE_INFINITY };
 }
 
 export class LevSmasherBoss {
@@ -130,8 +159,10 @@ export class LevSmasherBoss {
 
   private headHitbox!: THREE.Mesh;
   private bodyHitbox!: THREE.Mesh;
+  private hitMeshes: THREE.Object3D[] = [];
   private rightArmPivot!: THREE.Group;
   private leftArmPivot!: THREE.Group;
+  private muzzleGlow!: THREE.Mesh;
   private coreMat!: THREE.MeshStandardMaterial;
 
   private scene: THREE.Scene;
@@ -195,6 +226,8 @@ export class LevSmasherBoss {
     legL.position.set(-0.46, 0.66, 0);
     const legR = legL.clone();
     legR.position.x = 0.46;
+    legL.userData = { isBoss: true, isHead: false };
+    legR.userData = { isBoss: true, isHead: false };
     this.group.add(legL, legR);
 
     // Knee piston guards
@@ -214,6 +247,7 @@ export class LevSmasherBoss {
     // Ribbed chest plates + glowing crimson reactor core
     const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.72, 0.25), crimsonAccent);
     chestPlate.position.set(0, 2.02, 0.45);
+    chestPlate.userData = { isBoss: true, isHead: false };
     this.group.add(chestPlate);
 
     const reactorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.28, 12), this.coreMat);
@@ -229,11 +263,14 @@ export class LevSmasherBoss {
     const pauldronR = pauldronL.clone();
     pauldronR.position.x = 1.05;
     pauldronR.rotation.z = -0.18;
+    pauldronL.userData = { isBoss: true, isHead: false };
+    pauldronR.userData = { isBoss: true, isHead: false };
     this.group.add(pauldronL, pauldronR);
 
     // Shoulder-mounted multi-missile pod (Left shoulder)
     const missilePod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.54, 0.82), crimsonAccent);
     missilePod.position.set(-0.98, 2.94, -0.05);
+    missilePod.userData = { isBoss: true, isHead: false };
     this.group.add(missilePod);
     for (const mx of [-0.15, 0.15]) {
       for (const my of [-0.12, 0.12]) {
@@ -256,6 +293,9 @@ export class LevSmasherBoss {
     eyeR.position.x = 0.13;
     const brow = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.07, 0.12), crimsonAccent);
     brow.position.set(0, 0.17, 0.28);
+    eyeL.userData = { isBoss: true, isHead: true };
+    eyeR.userData = { isBoss: true, isHead: true };
+    brow.userData = { isBoss: true, isHead: true };
     this.headHitbox.add(eyeL, eyeR, brow);
 
     // Right arm with heavy rotary autocannon
@@ -264,15 +304,16 @@ export class LevSmasherBoss {
     const armR = new THREE.Mesh(new THREE.BoxGeometry(0.38, 1.05, 0.42), darkArmor);
     armR.position.set(0, -0.35, 0.2);
     armR.rotation.x = -0.65;
+    armR.userData = { isBoss: true, isHead: false };
     this.rightArmPivot.add(armR);
     const cannonBody = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.45, 10), gunmetal);
     cannonBody.rotation.x = Math.PI / 2;
     cannonBody.position.set(0, -0.58, 1.05);
     this.rightArmPivot.add(cannonBody);
-    const muzzleGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 8), this.coreMat);
-    muzzleGlow.rotation.x = Math.PI / 2;
-    muzzleGlow.position.set(0, -0.58, 1.78);
-    this.rightArmPivot.add(muzzleGlow);
+    this.muzzleGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 8), this.coreMat);
+    this.muzzleGlow.rotation.x = Math.PI / 2;
+    this.muzzleGlow.position.set(0, -0.58, 1.78);
+    this.rightArmPivot.add(this.muzzleGlow);
     this.group.add(this.rightArmPivot);
 
     // Left arm with crushing cyber-fist
@@ -281,8 +322,10 @@ export class LevSmasherBoss {
     const armL = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.12, 0.44), darkArmor);
     armL.position.set(0, -0.42, 0.16);
     armL.rotation.x = -0.35;
+    armL.userData = { isBoss: true, isHead: false };
     const fist = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.46, 0.56), crimsonAccent);
     fist.position.set(0, -0.92, 0.44);
+    fist.userData = { isBoss: true, isHead: false };
     this.leftArmPivot.add(armL, fist);
     this.group.add(this.leftArmPivot);
 
@@ -293,6 +336,22 @@ export class LevSmasherBoss {
 
     this.bodyHitbox.userData = { isBoss: true, isHead: false };
     this.headHitbox.userData = { isBoss: true, isHead: true };
+    this.hitMeshes = [
+      this.headHitbox,
+      eyeL,
+      eyeR,
+      brow,
+      this.bodyHitbox,
+      chestPlate,
+      legL,
+      legR,
+      pauldronL,
+      pauldronR,
+      missilePod,
+      armR,
+      armL,
+      fist,
+    ];
   }
 
   appearForKnockback(x: number, z: number, floorY = 0): void {
@@ -303,6 +362,10 @@ export class LevSmasherBoss {
     this.group.visible = true;
     this.group.position.set(x, this.floorY, z);
     this.group.rotation.set(0, 0, 0);
+    this.hitFlashTimer = 0;
+    const bodyMat = this.bodyHitbox.material as THREE.MeshStandardMaterial;
+    bodyMat.emissive.setHex(0x000000);
+    bodyMat.emissiveIntensity = 0;
     // Raise left fist in crushing strike pose
     this.leftArmPivot.rotation.x = -1.35;
     this.rightArmPivot.rotation.x = -0.35;
@@ -315,9 +378,17 @@ export class LevSmasherBoss {
     this.group.position.set(x, this.floorY, z);
     this.state.startPhase1();
     this.gunTimer = 1.1;
+    this.burstRemaining = 0;
+    this.burstSpacing = 0;
     this.missileTimer = 3.8;
     this.sandevistanDashTimer = 2.8;
     this.activeDashTime = 0;
+    this.afterimageSpawnAccum = 0;
+    this.hitFlashTimer = 0;
+    this.walkCycle = 0;
+    const bodyMat = this.bodyHitbox.material as THREE.MeshStandardMaterial;
+    bodyMat.emissive.setHex(0x000000);
+    bodyMat.emissiveIntensity = 0;
     this.leftArmPivot.rotation.x = 0;
     this.rightArmPivot.rotation.x = 0;
   }
@@ -328,24 +399,52 @@ export class LevSmasherBoss {
   }
 
   /**
-   * Positions Lev Smasher directly in front of Samir for the scripted defeat finisher.
+   * Positions Lev Smasher in an unobstructed spot near Samir (avoiding pillars/walls)
+   * for the scripted defeat finisher and returns his final XZ position.
    */
-  positionForFinisher(playerPos: Vec3, playerYaw: number): void {
+  positionForFinisher(playerPos: Vec3, playerYaw: number): { x: number; z: number } {
     this.clearEffects();
     this.group.visible = true;
-    const fx = -Math.sin(playerYaw);
-    const fz = -Math.cos(playerYaw);
+
     const dist = 3.1;
-    const targetX = Math.max(-15, Math.min(15, playerPos.x + fx * dist));
-    const targetZ = Math.max(-138, Math.min(-94, playerPos.z + fz * dist));
-    this.group.position.set(targetX, this.floorY, targetZ);
-    this.group.rotation.y = Math.atan2(playerPos.x - targetX, playerPos.z - targetZ);
+    const candidateAngles = [0, 0.55, -0.55, 1.15, -1.15, Math.PI, Math.PI * 0.5, -Math.PI * 0.5];
+    let bestX = Math.max(-15, Math.min(15, playerPos.x));
+    let bestZ = Math.max(-138, Math.min(-94, playerPos.z - dist));
+
+    for (const offset of candidateAngles) {
+      const a = playerYaw + offset;
+      const fx = -Math.sin(a);
+      const fz = -Math.cos(a);
+      const rawX = Math.max(-15.5, Math.min(15.5, playerPos.x + fx * dist));
+      const rawZ = Math.max(-138.5, Math.min(-93.5, playerPos.z + fz * dist));
+      const resolved = this.physics.resolveCylinderMove(
+        { x: rawX, y: this.floorY, z: rawZ },
+        rawX,
+        rawZ,
+        0.95,
+        this.floorY,
+        2.8,
+      );
+      const sep = Math.hypot(resolved.x - playerPos.x, resolved.z - playerPos.z);
+      if (sep >= 2.0 && this.physics.hasLineOfSight(
+        { x: playerPos.x, y: this.floorY + 1.0, z: playerPos.z },
+        { x: resolved.x, y: this.floorY + 1.8, z: resolved.z },
+      )) {
+        bestX = resolved.x;
+        bestZ = resolved.z;
+        break;
+      }
+    }
+
+    this.group.position.set(bestX, this.floorY, bestZ);
+    this.group.rotation.y = Math.atan2(playerPos.x - bestX, playerPos.z - bestZ);
     this.leftArmPivot.rotation.x = -1.6;
-    this.spawnShockwave(targetX, targetZ, 7.5);
+    this.spawnShockwave(bestX, bestZ, 7.5);
+    return { x: bestX, z: bestZ };
   }
 
   /**
-   * Slowly stalks closer over fallen Samir during the blackout monologue.
+   * Slowly stalks closer over fallen Samir during the blackout monologue (respecting pillars).
    */
   updateFinisherLoom(dt: number, playerPos: Vec3): void {
     const dx = playerPos.x - this.group.position.x;
@@ -353,10 +452,13 @@ export class LevSmasherBoss {
     const dist = Math.hypot(dx, dz);
     this.group.rotation.y = Math.atan2(dx, dz);
     if (dist > 1.85) {
-      this.group.position.x += (dx / dist) * 1.15 * dt;
-      this.group.position.z += (dz / dist) * 1.15 * dt;
+      const nextX = this.group.position.x + (dx / dist) * 1.15 * dt;
+      const nextZ = this.group.position.z + (dz / dist) * 1.15 * dt;
+      const res = this.physics.resolveCylinderMove(this.group.position, nextX, nextZ, 0.95, this.floorY, 2.8);
+      this.group.position.x = res.x;
+      this.group.position.z = res.z;
     }
-    this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(this.leftArmPivot.rotation.x, -0.3, dt * 2.4);
+    this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(this.leftArmPivot.rotation.x, -0.3, Math.min(1, dt * 2.4));
     this.updateShockwaves(dt, playerPos, false);
   }
 
@@ -379,7 +481,7 @@ export class LevSmasherBoss {
 
     this.raycaster.set(origin, direction);
     this.raycaster.far = maxWallDist;
-    const hits = this.raycaster.intersectObjects([this.headHitbox, this.bodyHitbox], false);
+    const hits = this.raycaster.intersectObjects(this.hitMeshes, false);
     if (hits.length === 0) {
       return {
         hit: false,
@@ -416,13 +518,16 @@ export class LevSmasherBoss {
     if (!this.group.visible || (this.state.phase !== 'PHASE_1' && this.state.phase !== 'PHASE_2')) {
       return { hit: false, damage: 0, enteredPhase2: false, triggeredFinisher: false };
     }
-    const toBoss = new THREE.Vector3(
-      this.group.position.x - origin.x,
-      this.floorY + 1.6 - origin.y,
-      this.group.position.z - origin.z,
-    );
+    const targetPos = new THREE.Vector3(this.group.position.x, this.floorY + 1.6, this.group.position.z);
+    const toBoss = new THREE.Vector3().subVectors(targetPos, origin);
     const dist = toBoss.length();
-    if (dist > 5.0 || toBoss.normalize().dot(forward) < 0.4) {
+    if (dist > 5.0) {
+      return { hit: false, damage: 0, enteredPhase2: false, triggeredFinisher: false };
+    }
+    if (dist > 1e-4 && toBoss.divideScalar(dist).dot(forward) < 0.4) {
+      return { hit: false, damage: 0, enteredPhase2: false, triggeredFinisher: false };
+    }
+    if (!this.physics.hasLineOfSight(origin, targetPos)) {
       return { hit: false, damage: 0, enteredPhase2: false, triggeredFinisher: false };
     }
     const res = this.state.applyDamage(55);
@@ -435,14 +540,17 @@ export class LevSmasherBoss {
     };
   }
 
+  private isCombatActive(): boolean {
+    return this.group.visible && (this.state.phase === 'PHASE_1' || this.state.phase === 'PHASE_2');
+  }
+
   updateCombat(
     worldDt: number,
     playerPos: Vec3,
     playerEye: Vec3,
     callbacks: BossCallbacks,
   ): void {
-    if (!this.group.visible) return;
-    if (this.state.phase !== 'PHASE_1' && this.state.phase !== 'PHASE_2') return;
+    if (!this.isCombatActive()) return;
 
     // Hit flash
     const bodyMat = this.bodyHitbox.material as THREE.MeshStandardMaterial;
@@ -465,6 +573,7 @@ export class LevSmasherBoss {
     // Movement / Phase 2 Sandevistan Dash
     if (this.activeDashTime > 0) {
       this.activeDashTime -= worldDt;
+      this.group.position.y = this.floorY;
       this.afterimageSpawnAccum += worldDt;
       if (this.afterimageSpawnAccum >= 0.065) {
         this.afterimageSpawnAccum = 0;
@@ -476,9 +585,23 @@ export class LevSmasherBoss {
       this.group.position.x = res.x;
       this.group.position.z = res.z;
 
+      // Lev Smasher bowls through any surviving corporate troops during his Sandevistan charge
+      callbacks.onAreaDamageEnemies?.(
+        { x: this.group.position.x, y: this.floorY + 1.2, z: this.group.position.z },
+        2.2,
+        140 * worldDt,
+        true,
+      );
+
       if (this.activeDashTime <= 0) {
         // End of Sandevistan dash: ground slam shockwave!
         this.spawnShockwave(this.group.position.x, this.group.position.z, 11.5);
+        callbacks.onAreaDamageEnemies?.(
+          { x: this.group.position.x, y: this.floorY + 1.0, z: this.group.position.z },
+          9.0,
+          75,
+          true,
+        );
         callbacks.onMissileExplode();
       }
     } else {
@@ -499,6 +622,8 @@ export class LevSmasherBoss {
         this.group.position.z = res.z;
         this.walkCycle += worldDt * (isPhase2 ? 8 : 5.5);
         this.group.position.y = this.floorY + Math.abs(Math.sin(this.walkCycle)) * 0.14;
+      } else {
+        this.group.position.y = this.floorY;
       }
 
       if (isPhase2) {
@@ -508,7 +633,6 @@ export class LevSmasherBoss {
           this.activeDashTime = 0.55;
           const dirX = dx / Math.max(0.001, dist);
           const dirZ = dz / Math.max(0.001, dist);
-          // Dash aggressively toward or flanking Samir
           this.dashVelocity.set(dirX * 19.5, 0, dirZ * 19.5);
           callbacks.onRoar();
         }
@@ -541,66 +665,83 @@ export class LevSmasherBoss {
       callbacks.onRoar();
     }
 
-    // Update boss projectiles
+    // Update boss projectiles (segment-vs-cylinder check before wall occlusion, plus friendly-fire vs enemies)
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      if (i >= this.projectiles.length) continue;
       const p = this.projectiles[i];
       p.life -= worldDt;
       const step = p.velocity.clone().multiplyScalar(worldDt);
-      const wall = this.physics.raycast(
-        p.mesh.position,
-        p.velocity.clone().normalize(),
-        step.length() + 0.15,
-        true,
+      const stepLen = step.length();
+      const prevPos = p.mesh.position.clone();
+      const nextPos = prevPos.clone().add(step);
+      const dir = stepLen > 1e-6 ? step.clone().divideScalar(stepLen) : p.velocity.clone().normalize();
+
+      const wall = this.physics.raycastBullets(prevPos, dir, stepLen + 0.12);
+      const playerHit = segmentHitsCylinder(
+        prevPos,
+        nextPos,
+        playerPos.x,
+        playerPos.z,
+        playerPos.y + 0.15,
+        playerPos.y + 2.1,
+        0.72,
       );
-      if (wall.hit || p.life <= 0) {
-        this.scene.remove(p.mesh);
-        this.projectiles.splice(i, 1);
+
+      if (playerHit.hit && (!wall.hit || playerHit.distance <= wall.distance)) {
+        this.removeProjectileAt(i);
+        callbacks.onPlayerDamaged(p.damage, 0.35);
+        if (!this.isCombatActive()) return;
         continue;
       }
-      p.mesh.position.add(step);
 
-      const pdx = p.mesh.position.x - playerPos.x;
-      const pdz = p.mesh.position.z - playerPos.z;
-      const pdy = p.mesh.position.y - (playerPos.y + 1.15);
-      if (pdx * pdx + pdz * pdz < 0.72 * 0.72 && Math.abs(pdy) < 1.0) {
-        callbacks.onPlayerDamaged(p.damage, 0.35);
-        this.scene.remove(p.mesh);
-        this.projectiles.splice(i, 1);
+      if (callbacks.onProjectileHitEnemy?.(prevPos, nextPos, p.damage * 3)) {
+        this.removeProjectileAt(i);
+        continue;
       }
+
+      if (wall.hit || p.life <= 0) {
+        this.removeProjectileAt(i);
+        continue;
+      }
+
+      p.mesh.position.copy(nextPos);
     }
 
     // Update telegraphed missiles
     for (let i = this.missiles.length - 1; i >= 0; i--) {
+      if (i >= this.missiles.length) continue;
       const m = this.missiles[i];
       m.timer -= worldDt;
       const progress = 1 - Math.max(0, m.timer / m.maxTimer);
-      m.missile.position.lerpVectors(
-        new THREE.Vector3(this.group.position.x - 0.8, this.floorY + 3.2, this.group.position.z),
-        m.targetPos,
-        progress,
-      );
+      m.missile.position.lerpVectors(m.startPos, m.targetPos, progress);
       m.missile.position.y += Math.sin(progress * Math.PI) * 5.2;
       m.ring.scale.setScalar(0.5 + progress * 0.5);
 
       if (m.timer <= 0) {
-        const blastDist = Math.hypot(playerPos.x - m.targetPos.x, playerPos.z - m.targetPos.z);
-        if (blastDist < 2.8) {
-          callbacks.onPlayerDamaged(18, 0.75);
-        }
+        const targetCopy = m.targetPos.clone();
+        this.removeMissileAt(i);
         callbacks.onMissileExplode();
-        this.scene.remove(m.ring);
-        this.scene.remove(m.missile);
-        this.missiles.splice(i, 1);
+        callbacks.onAreaDamageEnemies?.(targetCopy, 2.8, 85, true);
+
+        const blastDist = Math.hypot(playerPos.x - targetCopy.x, playerPos.z - targetCopy.z);
+        if (blastDist < 2.6) {
+          callbacks.onPlayerDamaged(18, 0.75);
+          if (!this.isCombatActive()) return;
+        }
       }
     }
 
     // Update shockwaves & afterimages
     this.updateShockwaves(worldDt, playerPos, true, callbacks);
+    if (!this.isCombatActive()) return;
+
     for (let i = this.afterimages.length - 1; i >= 0; i--) {
+      if (i >= this.afterimages.length) continue;
       const g = this.afterimages[i];
       g.life -= worldDt;
       if (g.life <= 0) {
         this.scene.remove(g.mesh);
+        g.mesh.geometry.dispose();
         (g.mesh.material as THREE.Material).dispose();
         this.afterimages.splice(i, 1);
       } else {
@@ -609,12 +750,32 @@ export class LevSmasherBoss {
     }
   }
 
+  private removeProjectileAt(idx: number): void {
+    const p = this.projectiles[idx];
+    if (!p) return;
+    this.scene.remove(p.mesh);
+    p.mesh.geometry.dispose();
+    (p.mesh.material as THREE.Material).dispose();
+    this.projectiles.splice(idx, 1);
+  }
+
+  private removeMissileAt(idx: number): void {
+    const m = this.missiles[idx];
+    if (!m) return;
+    this.scene.remove(m.ring);
+    m.ring.geometry.dispose();
+    (m.ring.material as THREE.Material).dispose();
+    this.scene.remove(m.missile);
+    m.missile.geometry.dispose();
+    (m.missile.material as THREE.Material).dispose();
+    this.missiles.splice(idx, 1);
+  }
+
   private fireAutocannonBolt(playerEye: Vec3): void {
-    const start = new THREE.Vector3(
-      this.group.position.x + Math.cos(this.group.rotation.y) * 1.0,
-      this.floorY + 2.05,
-      this.group.position.z - Math.sin(this.group.rotation.y) * 1.0,
-    );
+    this.group.updateMatrixWorld(true);
+    const start = new THREE.Vector3();
+    this.muzzleGlow.getWorldPosition(start);
+
     const dir = new THREE.Vector3(
       playerEye.x - start.x + (Math.random() - 0.5) * 0.75,
       playerEye.y - start.y - 0.18 + (Math.random() - 0.5) * 0.4,
@@ -638,13 +799,20 @@ export class LevSmasherBoss {
   }
 
   private launchMissileSalvo(playerPos: Vec3, count: number): void {
+    const podStart = new THREE.Vector3(
+      this.group.position.x - Math.cos(this.group.rotation.y) * 0.95,
+      this.floorY + 3.15,
+      this.group.position.z + Math.sin(this.group.rotation.y) * 0.95,
+    );
+
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2 + Math.random() * 0.8;
       const spread = i === 0 ? 0.6 : 2.6 + Math.random() * 2.2;
       const tx = Math.max(-15, Math.min(15, playerPos.x + Math.cos(angle) * spread));
       const tz = Math.max(-138, Math.min(-94, playerPos.z + Math.sin(angle) * spread));
 
-      const ringGeo = new THREE.RingGeometry(1.9, 2.35, 24);
+      // Outer radius 2.6 matches the 2.6m blast radius 1:1
+      const ringGeo = new THREE.RingGeometry(2.15, 2.6, 28);
       ringGeo.rotateX(-Math.PI / 2);
       const ringMat = new THREE.MeshBasicMaterial({
         color: 0xff003c,
@@ -660,13 +828,14 @@ export class LevSmasherBoss {
         new THREE.SphereGeometry(0.18, 8, 8),
         new THREE.MeshBasicMaterial({ color: 0xfcee0a }),
       );
-      missile.position.set(this.group.position.x, this.floorY + 3.2, this.group.position.z);
+      missile.position.copy(podStart);
       this.scene.add(missile);
 
       const maxTimer = 1.15 + i * 0.14;
       this.missiles.push({
         ring,
         missile,
+        startPos: podStart.clone(),
         targetPos: new THREE.Vector3(tx, this.floorY + 0.15, tz),
         timer: maxTimer,
         maxTimer,
@@ -675,7 +844,7 @@ export class LevSmasherBoss {
   }
 
   private spawnShockwave(x: number, z: number, maxRadius: number): void {
-    const geo = new THREE.RingGeometry(0.8, 1.35, 32);
+    const geo = new THREE.RingGeometry(0.92, 1.04, 48);
     geo.rotateX(-Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({
       color: 0xff003c,
@@ -685,8 +854,9 @@ export class LevSmasherBoss {
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, this.floorY + 0.12, z);
+    mesh.scale.setScalar(0.5);
     this.scene.add(mesh);
-    this.shockwaves.push({ mesh, radius: 1.0, maxRadius, damagedPlayer: false });
+    this.shockwaves.push({ mesh, prevRadius: 0, radius: 0.5, maxRadius, damagedPlayer: false });
   }
 
   private updateShockwaves(
@@ -696,7 +866,9 @@ export class LevSmasherBoss {
     callbacks?: BossCallbacks,
   ): void {
     for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+      if (i >= this.shockwaves.length) continue;
       const sw = this.shockwaves[i];
+      sw.prevRadius = sw.radius;
       sw.radius += dt * 15;
       sw.mesh.scale.setScalar(sw.radius);
       const t = Math.min(1, sw.radius / sw.maxRadius);
@@ -704,15 +876,18 @@ export class LevSmasherBoss {
 
       if (dealDamage && !sw.damagedPlayer && callbacks) {
         const d = Math.hypot(playerPos.x - sw.mesh.position.x, playerPos.z - sw.mesh.position.z);
-        // Player can jump over shockwave!
-        if (Math.abs(d - sw.radius) < 1.1 && playerPos.y < this.floorY + 0.75) {
+        // Player can jump over shockwave! Check swept band [prevRadius - 0.65, radius + 0.65] so epicenter isn't skipped.
+        if (d >= sw.prevRadius - 0.65 && d <= sw.radius + 0.65 && playerPos.y < this.floorY + 0.75) {
           sw.damagedPlayer = true;
           callbacks.onPlayerDamaged(16, 0.65);
+          if (!this.isCombatActive()) return;
         }
       }
 
       if (sw.radius >= sw.maxRadius) {
         this.scene.remove(sw.mesh);
+        sw.mesh.geometry.dispose();
+        (sw.mesh.material as THREE.Material).dispose();
         this.shockwaves.splice(i, 1);
       }
     }
@@ -733,16 +908,54 @@ export class LevSmasherBoss {
   }
 
   clearEffects(): void {
-    for (const p of this.projectiles) this.scene.remove(p.mesh);
+    for (const p of this.projectiles) {
+      this.scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      (p.mesh.material as THREE.Material).dispose();
+    }
     this.projectiles = [];
     for (const m of this.missiles) {
       this.scene.remove(m.ring);
+      m.ring.geometry.dispose();
+      (m.ring.material as THREE.Material).dispose();
       this.scene.remove(m.missile);
+      m.missile.geometry.dispose();
+      (m.missile.material as THREE.Material).dispose();
     }
     this.missiles = [];
-    for (const sw of this.shockwaves) this.scene.remove(sw.mesh);
+    for (const sw of this.shockwaves) {
+      this.scene.remove(sw.mesh);
+      sw.mesh.geometry.dispose();
+      (sw.mesh.material as THREE.Material).dispose();
+    }
     this.shockwaves = [];
-    for (const g of this.afterimages) this.scene.remove(g.mesh);
+    for (const g of this.afterimages) {
+      this.scene.remove(g.mesh);
+      g.mesh.geometry.dispose();
+      (g.mesh.material as THREE.Material).dispose();
+    }
     this.afterimages = [];
+  }
+
+  dispose(): void {
+    this.clearEffects();
+    this.scene.remove(this.group);
+    const disposedGeos = new Set<THREE.BufferGeometry>();
+    const disposedMats = new Set<THREE.Material>();
+    this.group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        if (!disposedGeos.has(obj.geometry)) {
+          disposedGeos.add(obj.geometry);
+          obj.geometry.dispose();
+        }
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (!disposedMats.has(m)) {
+            disposedMats.add(m);
+            m.dispose();
+          }
+        }
+      }
+    });
   }
 }
