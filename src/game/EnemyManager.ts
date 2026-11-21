@@ -7,6 +7,7 @@ export interface EnemySpawnConfig {
   x: number;
   y?: number;
   z: number;
+  floorY?: number;
 }
 
 interface EnemyProjectile {
@@ -25,6 +26,7 @@ interface ImpactSpark {
 export interface EnemyInstance {
   id: string;
   archetype: EnemyArchetype;
+  baseFloorY: number;
   group: THREE.Group;
   headMesh: THREE.Mesh;
   bodyMesh: THREE.Mesh;
@@ -86,7 +88,8 @@ export class EnemyManager {
     const stats = ARCHETYPE_STATS[cfg.archetype];
     const id = `enemy_${this.nextId++}`;
     const group = new THREE.Group();
-    const baseY = cfg.y ?? (cfg.archetype === 'drone' ? 2.6 : cfg.archetype === 'turret' ? 6.6 : 0);
+    const floorY = cfg.floorY ?? 0;
+    const baseY = cfg.y ?? (floorY + (cfg.archetype === 'drone' ? 2.6 : cfg.archetype === 'turret' ? 6.6 : 0));
     group.position.set(cfg.x, baseY, cfg.z);
 
     const bodyMat = new THREE.MeshStandardMaterial({
@@ -221,6 +224,7 @@ export class EnemyManager {
     const enemy: EnemyInstance = {
       id,
       archetype: cfg.archetype,
+      baseFloorY: floorY,
       group,
       headMesh,
       bodyMesh,
@@ -390,7 +394,7 @@ export class EnemyManager {
           e.group.scale.multiplyScalar(Math.max(0.01, 1 - worldDt * 3.5));
         } else {
           e.group.rotation.x = Math.min(Math.PI / 2, e.group.rotation.x + worldDt * 4.5);
-          e.group.position.y = Math.max(0.18, e.group.position.y - worldDt * 0.5);
+          e.group.position.y = Math.max(e.baseFloorY + 0.18, e.group.position.y - worldDt * 0.5);
         }
         if (e.deathTimer <= 0) {
           this.scene.remove(e.group);
@@ -462,7 +466,7 @@ export class EnemyManager {
             e.group.position.x + stepX,
             e.group.position.z + stepZ,
             0.55,
-            e.archetype === 'drone' ? 2.0 : 0,
+            e.baseFloorY + (e.archetype === 'drone' ? 2.0 : 0),
             1.7,
           );
           e.group.position.x = res.x;
@@ -473,7 +477,7 @@ export class EnemyManager {
         }
 
         if (e.archetype === 'drone') {
-          e.group.position.y = 2.6 + Math.sin(performance.now() * 0.004 + i) * 0.3;
+          e.group.position.y = e.baseFloorY + 2.6 + Math.sin(performance.now() * 0.004 + i) * 0.3;
         }
       }
 

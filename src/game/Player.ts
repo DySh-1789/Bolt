@@ -112,6 +112,7 @@ export class PlayerController {
   readonly eyeHeight = 1.68;
   readonly radius = 0.45;
   readonly height = 1.8;
+  groundY = 0;
 
   private grounded = true;
   private headBobPhase = 0;
@@ -142,6 +143,7 @@ export class PlayerController {
   }
 
   teleport(x: number, y: number, z: number, yaw = 0, pitch = 0): void {
+    this.groundY = y;
     this.position.set(x, y, z);
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
@@ -150,6 +152,13 @@ export class PlayerController {
     this.grounded = true;
     this.dashTimer = 0;
     this.syncCamera(0);
+  }
+
+  syncElevatorY(floorY: number): void {
+    this.groundY = floorY;
+    this.position.y = floorY;
+    this.velocity.y = 0;
+    this.grounded = true;
   }
 
   setMode(mode: CameraMode): void {
@@ -168,7 +177,7 @@ export class PlayerController {
   startKnockback(targetZ: number, targetX = 0): void {
     this.mode = 'KNOCKBACK';
     this.knockbackStart.copy(this.position);
-    this.knockbackEnd.set(targetX, 0, targetZ);
+    this.knockbackEnd.set(targetX, this.groundY, targetZ);
     this.knockbackProgress = 0;
     this.velocity.set(0, 0, 0);
     this.addShake(1.0);
@@ -291,8 +300,8 @@ export class PlayerController {
       }
       this.velocity.y -= 18.5 * dt;
       this.position.y += this.velocity.y * dt;
-      if (this.position.y <= 0) {
-        this.position.y = 0;
+      if (this.position.y <= this.groundY) {
+        this.position.y = this.groundY;
         this.velocity.y = 0;
         this.grounded = true;
       }
@@ -320,7 +329,7 @@ export class PlayerController {
       this.position.z = THREE.MathUtils.lerp(this.knockbackStart.z, this.knockbackEnd.z, easeOut);
       // Parabolic flight arc with heavy landing bounce
       const arc = t < 0.72 ? Math.sin((t / 0.72) * Math.PI) * 2.15 : Math.sin(((t - 0.72) / 0.28) * Math.PI) * 0.28;
-      this.position.y = Math.max(0, arc);
+      this.position.y = this.groundY + Math.max(0, arc);
 
       // Camera looks back at Lev Smasher near doors (-Z) while tumbling
       this.yaw = THREE.MathUtils.lerp(this.yaw, 0, dt * 6);

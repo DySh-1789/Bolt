@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import type { InteractablePoint } from '../types/game';
 import type { PhysicsWorld } from '../engine/Physics';
 import type { ProceduralTextures } from '../engine/ProceduralTextures';
+import { ElevatorRig } from './ElevatorSystem';
+
+export const FLOOR_ATRIUM_Y = 0;
+export const FLOOR_SERVER_Y = 22;
+export const FLOOR_COUNCIL_Y = 44;
 
 interface SlidingDoor {
   id: string;
@@ -25,6 +30,7 @@ export interface SupplyCrate {
   id: string;
   mesh: THREE.Group;
   x: number;
+  y: number;
   z: number;
   used: boolean;
 }
@@ -33,6 +39,9 @@ export class LevelBuilder {
   readonly root = new THREE.Group();
   readonly interactables: InteractablePoint[] = [];
   readonly supplyCrates: SupplyCrate[] = [];
+
+  elev1!: ElevatorRig;
+  elev2!: ElevatorRig;
 
   private doors = new Map<string, SlidingDoor>();
   private laserBarrierGroup: THREE.Group | null = null;
@@ -55,17 +64,17 @@ export class LevelBuilder {
     const hemi = new THREE.HemisphereLight(0x6e8ec4, 0x261626, 0.68);
     this.root.add(hemi);
 
-    const ambient = new THREE.AmbientLight(0x303e5c, 0.30);
+    const ambient = new THREE.AmbientLight(0x303e5c, 0.3);
     this.root.add(ambient);
 
     const keyDir = new THREE.DirectionalLight(0xa8c4eb, 0.45);
-    keyDir.position.set(14, 28, 12);
+    keyDir.position.set(14, 72, 12);
     this.root.add(keyDir);
 
     this.buildAtrium();
-    this.buildConnector1();
+    this.buildElevator1();
     this.buildServerRoom();
-    this.buildConnector2();
+    this.buildElevator2();
     this.buildCouncilHall();
   }
 
@@ -137,17 +146,17 @@ export class LevelBuilder {
     return mesh;
   }
 
-  private addSupplyCrate(id: string, x: number, z: number): void {
+  private addSupplyCrate(id: string, x: number, baseY: number, z: number): void {
     const group = new THREE.Group();
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x16222c,
-      metalness: 0.7,
-      roughness: 0.35,
+      color: 0x21303f,
+      metalness: 0.38,
+      roughness: 0.5,
     });
     const glowMat = new THREE.MeshStandardMaterial({
       color: 0x00ff88,
       emissive: 0x00ff88,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 1.6,
     });
 
     const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.72, 0.8), bodyMat);
@@ -165,15 +174,15 @@ export class LevelBuilder {
     strip.position.y = 0.56;
     group.add(strip);
 
-    group.position.set(x, 0, z);
+    group.position.set(x, baseY, z);
     this.root.add(group);
 
-    this.supplyCrates.push({ id, mesh: group, x, z, used: false });
+    this.supplyCrates.push({ id, mesh: group, x, y: baseY, z, used: false });
     this.interactables.push({
       id,
       label: '[E] ПОПОЛНИТЬ MAXDOC И БРОНЮ',
       x,
-      y: 0.8,
+      y: baseY + 0.8,
       z,
       radius: 2.8,
       enabled: true,
@@ -183,29 +192,30 @@ export class LevelBuilder {
   private createSlidingDoor(
     id: string,
     centerZ: number,
+    baseY: number,
     width: number,
     height: number,
     accentHex: number,
   ): void {
     const leafW = width * 0.5;
     const doorMat = new THREE.MeshStandardMaterial({
-      color: 0x151926,
-      metalness: 0.85,
-      roughness: 0.28,
+      color: 0x1d2436,
+      metalness: 0.45,
+      roughness: 0.45,
     });
     const leftLeaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, height, 0.5), doorMat);
     const rightLeaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, height, 0.5), doorMat);
 
     const closedLeftX = -leafW * 0.5;
     const closedRightX = leafW * 0.5;
-    leftLeaf.position.set(closedLeftX, height * 0.5, centerZ);
-    rightLeaf.position.set(closedRightX, height * 0.5, centerZ);
+    leftLeaf.position.set(closedLeftX, baseY + height * 0.5, centerZ);
+    rightLeaf.position.set(closedRightX, baseY + height * 0.5, centerZ);
 
     // Neon trim on each leaf
     const trimMat = new THREE.MeshStandardMaterial({
       color: accentHex,
       emissive: accentHex,
-      emissiveIntensity: 2.4,
+      emissiveIntensity: 1.7,
     });
     const trimL = new THREE.Mesh(new THREE.BoxGeometry(0.12, height * 0.82, 0.56), trimMat);
     trimL.position.set(leafW * 0.42, 0, 0);
@@ -215,7 +225,7 @@ export class LevelBuilder {
     rightLeaf.add(trimR);
 
     this.root.add(leftLeaf, rightLeaf);
-    this.physics.addStaticBox(id, 0, height * 0.5, centerZ, width, height, 0.7, true);
+    this.physics.addStaticBox(id, 0, baseY + height * 0.5, centerZ, width, height, 0.7, true);
 
     this.doors.set(id, {
       id,
@@ -230,9 +240,10 @@ export class LevelBuilder {
   }
 
   // =========================================================================
-  // SECTOR 1: MAIN ATRIUM OF MARAKULIN TOWER (Z: 18 to -28, X: -16 to 16)
+  // SECTOR 1: MAIN ATRIUM — FLOOR 01 (Y = 0, Z: 18 to -28, X: -16 to 16)
   // =========================================================================
   private buildAtrium(): void {
+    const y0 = FLOOR_ATRIUM_Y;
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#ff003c', 8, 11),
       metalness: 0.2,
@@ -249,10 +260,9 @@ export class LevelBuilder {
       roughness: 0.55,
     });
 
-    // Floor & ceiling
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(32, 46), floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -5);
+    floor.position.set(0, y0, -5);
     floor.receiveShadow = true;
     this.root.add(floor);
 
@@ -261,26 +271,26 @@ export class LevelBuilder {
       new THREE.MeshStandardMaterial({ color: 0x111624, roughness: 0.85 }),
     );
     ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.set(0, 11, -5);
+    ceiling.position.set(0, y0 + 11, -5);
     this.root.add(ceiling);
 
     // Outer walls
-    this.addBoxMeshAndCollider('atrium_south', 0, 5.5, 18.5, 33, 11, 1, wallMat);
-    this.addBoxMeshAndCollider('atrium_west', -16.5, 5.5, -5, 1, 11, 47, wallMat);
-    this.addBoxMeshAndCollider('atrium_east', 16.5, 5.5, -5, 1, 11, 47, wallMat);
-    // North wall with doorway (X: -3.5..3.5, Y: 0..5.2)
-    this.addBoxMeshAndCollider('atrium_north_l', -9.75, 5.5, -28, 12.5, 11, 1, wallMat);
-    this.addBoxMeshAndCollider('atrium_north_r', 9.75, 5.5, -28, 12.5, 11, 1, wallMat);
-    this.addBoxMeshAndCollider('atrium_north_top', 0, 8.1, -28, 7.2, 5.8, 1, wallMat);
+    this.addBoxMeshAndCollider('atrium_south', 0, y0 + 5.5, 18.5, 33, 11, 1, wallMat);
+    this.addBoxMeshAndCollider('atrium_west', -16.5, y0 + 5.5, -5, 1, 11, 47, wallMat);
+    this.addBoxMeshAndCollider('atrium_east', 16.5, y0 + 5.5, -5, 1, 11, 47, wallMat);
+    // North wall with Elevator 1 portal (X: -3.5..3.5, Y: 0..5.2)
+    this.addBoxMeshAndCollider('atrium_north_l', -9.75, y0 + 5.5, -28, 12.5, 11, 1, wallMat);
+    this.addBoxMeshAndCollider('atrium_north_r', 9.75, y0 + 5.5, -28, 12.5, 11, 1, wallMat);
+    this.addBoxMeshAndCollider('atrium_north_top', 0, y0 + 8.1, -28, 7.2, 5.8, 1, wallMat);
 
-    // Sliding blast door to Sector 2
-    this.createSlidingDoor('door_atrium', -28, 7.0, 5.2, 0xff003c);
+    // Elevator 1 bottom doors at Floor 01
+    this.createSlidingDoor('door_elev1_bottom', -28, y0, 7.0, 5.2, 0x00f0ff);
 
     // Iconic corporate neon signs
     this.addSignPlane(
-      this.textures.getNeonSign('MARAKULIN CORP', 'МАРАКУЛИН ТАВЕР // ГЛАВНЫЙ АТРИУМ', '#ff003c', '#00f0ff'),
+      this.textures.getNeonSign('MARAKULIN CORP', 'ЭТАЖ 01 // ГЛАВНЫЙ АТРИУМ → ЛИФТ В СЕРВЕРНУЮ', '#ff003c', '#00f0ff'),
       0,
-      7.9,
+      y0 + 7.9,
       -27.3,
       14.5,
       3.4,
@@ -289,7 +299,7 @@ export class LevelBuilder {
     this.addSignPlane(
       this.textures.getNeonSign('СЕКТОР 01', 'ТРЕВОГА БЕЗОПАСНОСТИ // КОД КРАСНЫЙ', '#ff003c', '#fcee0a'),
       -15.9,
-      6.8,
+      y0 + 6.8,
       -4,
       11,
       2.6,
@@ -298,7 +308,7 @@ export class LevelBuilder {
     this.addSignPlane(
       this.textures.getNeonSign('MARAKULIN TOWER', 'КОНТРОЛЬ ЭНГРАММ // ДУШЕГУБ', '#00f0ff', '#ff003c'),
       15.9,
-      6.8,
+      y0 + 6.8,
       -4,
       11,
       2.6,
@@ -306,11 +316,11 @@ export class LevelBuilder {
     );
 
     // Central dais + rotating holographic corporate monument
-    this.addBoxMeshAndCollider('atrium_dais', 0, 0.75, -4, 4.2, 1.5, 4.2, darkMarble, true, false);
-    this.addNeonStrip(0, 1.52, -4, 4.35, 0.08, 4.35, 0xff003c, 1.6);
+    this.addBoxMeshAndCollider('atrium_dais', 0, y0 + 0.75, -4, 4.2, 1.5, 4.2, darkMarble, true, false);
+    this.addNeonStrip(0, y0 + 1.52, -4, 4.35, 0.08, 4.35, 0xff003c, 1.6);
 
     const holoGroup = new THREE.Group();
-    holoGroup.position.set(0, 4.3, -4);
+    holoGroup.position.set(0, y0 + 4.3, -4);
     const holoMat = new THREE.MeshBasicMaterial({
       color: 0xff003c,
       wireframe: true,
@@ -332,17 +342,17 @@ export class LevelBuilder {
     this.root.add(holoGroup);
     this.hologramSpinners.push(holoGroup);
 
-    // 6 Tall columns with crimson light channels
+    // 6 Tall columns with crimson/cyan light channels
     const colZ = [6, -4, -14];
     for (const cz of colZ) {
       for (const cx of [-9.5, 9.5]) {
-        this.addBoxMeshAndCollider(`atrium_col_${cx}_${cz}`, cx, 5.5, cz, 2.2, 11, 2.2, darkMarble);
-        this.addNeonStrip(cx, 5.5, cz + 1.12, 0.16, 10.2, 0.08, 0xff003c, 1.6);
-        this.addNeonStrip(cx, 5.5, cz - 1.12, 0.16, 10.2, 0.08, 0x00f0ff, 1.4);
+        this.addBoxMeshAndCollider(`atrium_col_${cx}_${cz}`, cx, y0 + 5.5, cz, 2.2, 11, 2.2, darkMarble);
+        this.addNeonStrip(cx, y0 + 5.5, cz + 1.12, 0.16, 10.2, 0.08, 0xff003c, 1.6);
+        this.addNeonStrip(cx, y0 + 5.5, cz - 1.12, 0.16, 10.2, 0.08, 0x00f0ff, 1.4);
       }
     }
 
-    // Tactical waist-high cover desks & barricades with glowing top edges
+    // Tactical waist-high cover desks & barricades
     const atriumCovers: Array<[string, number, number, number, number]> = [
       ['atrium_cover_1', -4.8, 4.5, 3.2, 1.0],
       ['atrium_cover_2', 4.8, 4.5, 3.2, 1.0],
@@ -351,62 +361,60 @@ export class LevelBuilder {
       ['atrium_cover_5', 0, -19.5, 4.4, 1.1],
     ];
     for (const [id, x, z, w, d] of atriumCovers) {
-      this.addBoxMeshAndCollider(id, x, 0.65, z, w, 1.3, d, darkMarble, true, false);
-      this.addNeonStrip(x, 1.32, z, w + 0.06, 0.06, d + 0.06, 0x00f0ff, 1.3);
+      this.addBoxMeshAndCollider(id, x, y0 + 0.65, z, w, 1.3, d, darkMarble, true, false);
+      this.addNeonStrip(x, y0 + 1.32, z, w + 0.06, 0.06, d + 0.06, 0x00f0ff, 1.3);
     }
 
-    // Balanced overhead cyberpunk neon trusses & lights (no glare hotspots)
+    // Overhead neon trusses & balanced lights
     for (const lz of [12, 2, -8, -19]) {
       const isCrimson = lz === -8;
-      this.addNeonStrip(0, 10.7, lz, 24, 0.18, 0.35, isCrimson ? 0xff003c : 0x00f0ff, 1.5);
+      this.addNeonStrip(0, y0 + 10.7, lz, 24, 0.18, 0.35, isCrimson ? 0xff003c : 0x00f0ff, 1.5);
       const pt = new THREE.PointLight(isCrimson ? 0xff3b62 : 0x64d6f5, isCrimson ? 24 : 26, 30, 1.55);
-      pt.position.set(0, 8.6, lz);
+      pt.position.set(0, y0 + 8.6, lz);
       this.root.add(pt);
       if (isCrimson) this.alarmLights.push(pt);
     }
   }
 
   // =========================================================================
-  // CONNECTOR 1 -> 2 (Z: -28 to -38, X: -3.8 to 3.8)
+  // ELEVATOR 1: FLOOR 01 (Y = 0) -> FLOOR 42 (Y = 22)  [Z: -28 to -38]
   // =========================================================================
-  private buildConnector1(): void {
-    const floorMat = new THREE.MeshStandardMaterial({
-      map: this.textures.getFloorTile('#00f0ff', 2, 3),
-      metalness: 0.2,
-      roughness: 0.58,
+  private buildElevator1(): void {
+    this.elev1 = new ElevatorRig(this.root, this.physics, this.textures, {
+      id: 'elev1',
+      centerZ: -33,
+      width: 6.8,
+      depth: 10.0,
+      cabinHeight: 5.0,
+      startY: FLOOR_ATRIUM_Y,
+      endY: FLOOR_SERVER_Y,
+      startFloor: 1,
+      endFloor: 42,
+      destinationTitle: 'СЕРВЕРНЫЙ УЗЕЛ',
+      accentHex: 0x00f0ff,
+      accentCss: '#00f0ff',
+      bottomDoorId: 'door_elev1_bottom',
+      topDoorId: 'door_elev1_top',
+      buttonInteractableId: 'elev1_button',
+      rideDuration: 4.2,
     });
-    const wallMat = new THREE.MeshStandardMaterial({
-      map: this.textures.getWallPanel('#00f0ff', 2, 1),
-      metalness: 0.22,
-      roughness: 0.64,
+
+    this.interactables.push({
+      id: 'elev1_button',
+      label: '[E] ПОЕХАТЬ НА ЭТАЖ 42 // СЕРВЕРНЫЙ УЗЕЛ',
+      x: 0,
+      y: FLOOR_ATRIUM_Y + 1.4,
+      z: -33.2,
+      radius: 3.7,
+      enabled: false,
     });
-
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 10.4), floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -33);
-    this.root.add(floor);
-
-    const ceil = new THREE.Mesh(
-      new THREE.PlaneGeometry(7.6, 10.4),
-      new THREE.MeshStandardMaterial({ color: 0x111624, roughness: 0.85 }),
-    );
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.set(0, 5.4, -33);
-    this.root.add(ceil);
-
-    this.addBoxMeshAndCollider('conn1_w', -4.1, 2.7, -33, 0.8, 5.4, 10.4, wallMat);
-    this.addBoxMeshAndCollider('conn1_e', 4.1, 2.7, -33, 0.8, 5.4, 10.4, wallMat);
-    this.addNeonStrip(0, 5.2, -33, 0.25, 0.12, 9.6, 0x00f0ff, 1.5);
-
-    const pt = new THREE.PointLight(0x5edbf5, 16, 18, 1.5);
-    pt.position.set(0, 4.4, -33);
-    this.root.add(pt);
   }
 
   // =========================================================================
-  // SECTOR 2: CYBERSECURITY SERVER HUB (Z: -38 to -80, X: -14 to 14)
+  // SECTOR 2: CYBERSECURITY SERVER HUB — FLOOR 42 (Y = 22, Z: -38 to -80)
   // =========================================================================
   private buildServerRoom(): void {
+    const y0 = FLOOR_SERVER_Y;
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#00f0ff', 7, 10),
       metalness: 0.2,
@@ -428,7 +436,7 @@ export class LevelBuilder {
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(28, 42), floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -59);
+    floor.position.set(0, y0, -59);
     floor.receiveShadow = true;
     this.root.add(floor);
 
@@ -437,25 +445,29 @@ export class LevelBuilder {
       new THREE.MeshStandardMaterial({ color: 0x101624, roughness: 0.85 }),
     );
     ceil.rotation.x = Math.PI / 2;
-    ceil.position.set(0, 8, -59);
+    ceil.position.set(0, y0 + 8, -59);
     this.root.add(ceil);
 
-    // Outer walls
-    this.addBoxMeshAndCollider('srv_south_l', -9, 4, -38, 10.4, 8, 1, wallMat);
-    this.addBoxMeshAndCollider('srv_south_r', 9, 4, -38, 10.4, 8, 1, wallMat);
-    this.addBoxMeshAndCollider('srv_south_top', 0, 6.7, -38, 8, 2.6, 1, wallMat);
-    this.addBoxMeshAndCollider('srv_west', -14.5, 4, -59, 1, 8, 43, wallMat);
-    this.addBoxMeshAndCollider('srv_east', 14.5, 4, -59, 1, 8, 43, wallMat);
+    // South wall with Elevator 1 top exit (X: -3.5..3.5, Y: y0..y0+5.2)
+    this.addBoxMeshAndCollider('srv_south_l', -8.85, y0 + 4, -38, 10.7, 8, 1, wallMat);
+    this.addBoxMeshAndCollider('srv_south_r', 8.85, y0 + 4, -38, 10.7, 8, 1, wallMat);
+    this.addBoxMeshAndCollider('srv_south_top', 0, y0 + 6.6, -38, 7.2, 2.8, 1, wallMat);
+    this.createSlidingDoor('door_elev1_top', -38, y0, 7.0, 5.2, 0x00f0ff);
 
-    // North wall with doorway (X: -4..4)
-    this.addBoxMeshAndCollider('srv_north_l', -9.2, 4, -80, 10.4, 8, 1, wallMat);
-    this.addBoxMeshAndCollider('srv_north_r', 9.2, 4, -80, 10.4, 8, 1, wallMat);
-    this.addBoxMeshAndCollider('srv_north_top', 0, 6.8, -80, 8.4, 2.4, 1, wallMat);
+    // Side walls
+    this.addBoxMeshAndCollider('srv_west', -14.5, y0 + 4, -59, 1, 8, 43, wallMat);
+    this.addBoxMeshAndCollider('srv_east', 14.5, y0 + 4, -59, 1, 8, 43, wallMat);
+
+    // North wall with Elevator 2 bottom entry (X: -4..4, Y: y0..y0+5.6)
+    this.addBoxMeshAndCollider('srv_north_l', -9.2, y0 + 4, -80, 10.4, 8, 1, wallMat);
+    this.addBoxMeshAndCollider('srv_north_r', 9.2, y0 + 4, -80, 10.4, 8, 1, wallMat);
+    this.addBoxMeshAndCollider('srv_north_top', 0, y0 + 6.8, -80, 8.4, 2.4, 1, wallMat);
+    this.createSlidingDoor('door_elev2_bottom', -80, y0, 8.0, 5.6, 0xfcee0a);
 
     this.addSignPlane(
-      this.textures.getNeonSign('СЕРВЕРНЫЙ УЗЕЛ', 'ДОСТУП: НЕТРАННЕРЫ МАРАКУЛИН // СЕКТОР 02', '#00f0ff', '#fcee0a'),
+      this.textures.getNeonSign('СЕРВЕРНЫЙ УЗЕЛ // ЭТ.42', 'ЛИФТ В ПЕНТХАУС СОВЕТА ЗА ЛАЗЕРНЫМ БАРЬЕРОМ', '#00f0ff', '#fcee0a'),
       0,
-      6.4,
+      y0 + 6.4,
       -79.35,
       12.5,
       2.6,
@@ -476,11 +488,11 @@ export class LevelBuilder {
       [7.5, -67],
     ];
     rackCoords.forEach(([rx, rz], idx) => {
-      this.addBoxMeshAndCollider(`srv_rack_${idx}`, rx, 2.1, rz, 2.4, 4.2, 2.4, rackMat);
-      this.addNeonStrip(rx, 4.25, rz, 2.45, 0.08, 2.45, idx % 2 === 0 ? 0x00f0ff : 0xff003c, 1.4);
+      this.addBoxMeshAndCollider(`srv_rack_${idx}`, rx, y0 + 2.1, rz, 2.4, 4.2, 2.4, rackMat);
+      this.addNeonStrip(rx, y0 + 4.25, rz, 2.45, 0.08, 2.45, idx % 2 === 0 ? 0x00f0ff : 0xff003c, 1.4);
     });
 
-    // Laser security barrier blocking exit until hacked
+    // Laser security barrier blocking Elevator 2 entry until hacked
     const laserGroup = new THREE.Group();
     const beamMat = new THREE.MeshStandardMaterial({
       color: 0xff003c,
@@ -492,7 +504,7 @@ export class LevelBuilder {
     for (let i = 0; i < 6; i++) {
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 8.0, 8), beamMat);
       beam.rotation.z = Math.PI / 2;
-      beam.position.set(0, 0.65 + i * 0.82, -79.4);
+      beam.position.set(0, y0 + 0.65 + i * 0.82, -79.2);
       laserGroup.add(beam);
     }
     const field = new THREE.Mesh(
@@ -504,11 +516,11 @@ export class LevelBuilder {
         side: THREE.DoubleSide,
       }),
     );
-    field.position.set(0, 2.7, -79.4);
+    field.position.set(0, y0 + 2.7, -79.2);
     laserGroup.add(field);
     this.root.add(laserGroup);
     this.laserBarrierGroup = laserGroup;
-    this.physics.addStaticBox('door_laser', 0, 2.8, -79.4, 8.2, 5.6, 0.6, false);
+    this.physics.addStaticBox('door_laser', 0, y0 + 2.8, -79.2, 8.2, 5.6, 0.6, false);
 
     // Hack terminal next to the laser barrier
     const termGroup = new THREE.Group();
@@ -529,73 +541,71 @@ export class LevelBuilder {
     screen.position.set(0, 1.5, 0.35);
     screen.rotation.x = -0.35;
     termGroup.add(screen);
-    termGroup.position.set(5.8, 0, -75.5);
+    termGroup.position.set(5.8, y0, -75.5);
     this.root.add(termGroup);
-    this.physics.addStaticBox('terminal_box', 5.8, 0.7, -75.5, 1.2, 1.4, 1.0, false);
+    this.physics.addStaticBox('terminal_box', 5.8, y0 + 0.7, -75.5, 1.2, 1.4, 1.0, false);
 
     this.interactables.push({
       id: 'terminal_hack',
-      label: '[E] ВЗЛОМАТЬ ЛАЗЕРНЫЙ БАРЬЕР',
+      label: '[E] ВЗЛОМАТЬ ЛАЗЕРНЫЙ БАРЬЕР И ВЫЗВАТЬ ЛИФТ',
       x: 5.8,
-      y: 1.4,
+      y: y0 + 1.4,
       z: -75.5,
-      radius: 3.1,
-      enabled: false, // Enabled once Sector 2 hostiles are cleared
+      radius: 3.2,
+      enabled: false,
     });
 
     // Supply crate in Sector 2
-    this.addSupplyCrate('crate_sector2', -5.8, -75.5);
+    this.addSupplyCrate('crate_sector2', -5.8, y0, -75.5);
 
     // Sector 2 lights
     for (const lz of [-44, -54, -64, -74]) {
-      this.addNeonStrip(0, 7.75, lz, 20, 0.14, 0.28, lz === -74 ? 0xff003c : 0x00f0ff, 1.5);
+      this.addNeonStrip(0, y0 + 7.75, lz, 20, 0.14, 0.28, lz === -74 ? 0xff003c : 0x00f0ff, 1.5);
       const pt = new THREE.PointLight(lz === -74 ? 0xff3b62 : 0x56d8f2, 22, 28, 1.55);
-      pt.position.set(0, 6.4, lz);
+      pt.position.set(0, y0 + 6.4, lz);
       this.root.add(pt);
     }
   }
 
   // =========================================================================
-  // CONNECTOR 2 -> 3 (Z: -80 to -90, X: -4.2 to 4.2)
+  // ELEVATOR 2: FLOOR 42 (Y = 22) -> FLOOR 95 (Y = 44)  [Z: -80 to -90]
   // =========================================================================
-  private buildConnector2(): void {
-    const floorMat = new THREE.MeshStandardMaterial({
-      map: this.textures.getFloorTile('#fcee0a', 2, 3),
-      metalness: 0.2,
-      roughness: 0.58,
+  private buildElevator2(): void {
+    this.elev2 = new ElevatorRig(this.root, this.physics, this.textures, {
+      id: 'elev2',
+      centerZ: -85,
+      width: 7.8,
+      depth: 10.0,
+      cabinHeight: 5.4,
+      startY: FLOOR_SERVER_Y,
+      endY: FLOOR_COUNCIL_Y,
+      startFloor: 42,
+      endFloor: 95,
+      destinationTitle: 'ЗАЛ СОВЕТА // РОДИОН',
+      accentHex: 0xfcee0a,
+      accentCss: '#fcee0a',
+      bottomDoorId: 'door_elev2_bottom',
+      topDoorId: 'door_elev2_top',
+      buttonInteractableId: 'elev2_button',
+      rideDuration: 4.5,
     });
-    const wallMat = new THREE.MeshStandardMaterial({
-      map: this.textures.getWallPanel('#fcee0a', 2, 1),
-      metalness: 0.22,
-      roughness: 0.64,
+
+    this.interactables.push({
+      id: 'elev2_button',
+      label: '[E] ПОЕХАТЬ НА ЭТАЖ 95 // ЗАЛ СОВЕТА РОДИОНА',
+      x: 0,
+      y: FLOOR_SERVER_Y + 1.4,
+      z: -85.2,
+      radius: 3.8,
+      enabled: false,
     });
-
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 10.4), floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -85);
-    this.root.add(floor);
-
-    const ceil = new THREE.Mesh(
-      new THREE.PlaneGeometry(8.4, 10.4),
-      new THREE.MeshStandardMaterial({ color: 0x111624, roughness: 0.85 }),
-    );
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.set(0, 6.2, -85);
-    this.root.add(ceil);
-
-    this.addBoxMeshAndCollider('conn2_w', -4.5, 3.1, -85, 0.8, 6.2, 10.4, wallMat);
-    this.addBoxMeshAndCollider('conn2_e', 4.5, 3.1, -85, 0.8, 6.2, 10.4, wallMat);
-    this.addNeonStrip(0, 6.0, -85, 0.3, 0.12, 9.5, 0xfcee0a, 1.5);
-
-    const pt = new THREE.PointLight(0xf5be5b, 18, 18, 1.5);
-    pt.position.set(0, 5.2, -85);
-    this.root.add(pt);
   }
 
   // =========================================================================
-  // SECTOR 3: COUNCIL ANTECHAMBER & BOSS ARENA (Z: -90 to -142, X: -18 to 18)
+  // SECTOR 3: COUNCIL HALL & BOSS ARENA — FLOOR 95 (Y = 44, Z: -90 to -142)
   // =========================================================================
   private buildCouncilHall(): void {
+    const y0 = FLOOR_COUNCIL_Y;
     const floorMat = new THREE.MeshStandardMaterial({
       map: this.textures.getFloorTile('#ff003c', 9, 13),
       metalness: 0.22,
@@ -614,55 +624,53 @@ export class LevelBuilder {
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 52), floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -116);
+    floor.position.set(0, y0, -116);
     floor.receiveShadow = true;
     this.root.add(floor);
 
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(36, 52),
-      new THREE.MeshStandardMaterial({ color: 0x05070e }),
+      new THREE.MeshStandardMaterial({ color: 0x101422, roughness: 0.85 }),
     );
     ceil.rotation.x = Math.PI / 2;
-    ceil.position.set(0, 14, -116);
+    ceil.position.set(0, y0 + 14, -116);
     this.root.add(ceil);
 
-    // South wall with entrance (X: -4.2..4.2)
-    this.addBoxMeshAndCollider('hall_south_l', -11.1, 7, -90, 13.8, 14, 1, wallMat);
-    this.addBoxMeshAndCollider('hall_south_r', 11.1, 7, -90, 13.8, 14, 1, wallMat);
-    this.addBoxMeshAndCollider('hall_south_top', 0, 10.1, -90, 8.8, 7.8, 1, wallMat);
+    // South wall with Elevator 2 top exit (X: -4.2..4.2, Y: y0..y0+6.2)
+    this.addBoxMeshAndCollider('hall_south_l', -11.1, y0 + 7, -90, 13.8, 14, 1, wallMat);
+    this.addBoxMeshAndCollider('hall_south_r', 11.1, y0 + 7, -90, 13.8, 14, 1, wallMat);
+    this.addBoxMeshAndCollider('hall_south_top', 0, y0 + 10.1, -90, 8.8, 7.8, 1, wallMat);
 
-    // Boss lock door (starts open, closes when Lev Smasher ambushes!)
-    this.createSlidingDoor('door_boss_lock', -90, 8.2, 6.2, 0xff003c);
-    this.setDoorOpen('door_boss_lock', true, true);
+    // Elevator 2 top exit doors (open when elevator arrives, seal shut on Lev Smasher ambush!)
+    this.createSlidingDoor('door_elev2_top', -90, y0, 8.4, 6.2, 0xff003c);
 
     // East solid corporate wall
-    this.addBoxMeshAndCollider('hall_east', 18.5, 7, -116, 1, 14, 53, wallMat);
+    this.addBoxMeshAndCollider('hall_east', 18.5, y0 + 7, -116, 1, 14, 53, wallMat);
 
-    // West panoramic glass window overlooking Night City skyline!
+    // West panoramic glass window overlooking Night City skyline from Floor 95!
     const glassMat = new THREE.MeshStandardMaterial({
       color: 0x112238,
-      metalness: 0.2,
-      roughness: 0.08,
+      metalness: 0.15,
+      roughness: 0.12,
       transparent: true,
       opacity: 0.22,
     });
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(52, 12.5), glassMat);
-    glass.position.set(-18, 6.8, -116);
+    glass.position.set(-18, y0 + 6.8, -116);
     glass.rotation.y = Math.PI / 2;
     this.root.add(glass);
-    this.physics.addStaticBox('hall_west_glass', -18.4, 7, -116, 0.8, 14, 53, false);
+    this.physics.addStaticBox('hall_west_glass', -18.4, y0 + 7, -116, 0.8, 14, 53, false);
 
-    // Window mullions
     for (let mz = -96; mz >= -136; mz -= 10) {
-      this.addBoxMeshAndCollider(`mullion_${mz}`, -17.9, 7, mz, 0.5, 14, 0.5, monolithMat, false);
+      this.addBoxMeshAndCollider(`mullion_${mz}`, -17.9, y0 + 7, mz, 0.5, 14, 0.5, monolithMat, false);
     }
 
-    // Night City skyline backdrop + flying AVs outside the west window
+    // Night City skyline backdrop + flying AVs outside Floor 95 window
     const skylineMat = new THREE.MeshBasicMaterial({
       map: this.textures.getCitySkyline(),
     });
     const skyline = new THREE.Mesh(new THREE.PlaneGeometry(110, 52), skylineMat);
-    skyline.position.set(-46, 12, -116);
+    skyline.position.set(-46, y0 + 10, -116);
     skyline.rotation.y = Math.PI / 2;
     this.root.add(skyline);
 
@@ -670,7 +678,7 @@ export class LevelBuilder {
       const av = new THREE.Group();
       const body = new THREE.Mesh(
         new THREE.BoxGeometry(1.4, 0.45, 3.2),
-        new THREE.MeshStandardMaterial({ color: 0x141824, metalness: 0.8, roughness: 0.2 }),
+        new THREE.MeshStandardMaterial({ color: 0x1c2233, metalness: 0.5, roughness: 0.35 }),
       );
       av.add(body);
       const head = new THREE.Mesh(
@@ -687,7 +695,7 @@ export class LevelBuilder {
       av.add(tail);
 
       const dir = i % 2 === 0 ? 1 : -1;
-      av.position.set(-24 - (i % 3) * 5, 2.5 + i * 2.1, -90 - i * 8);
+      av.position.set(-24 - (i % 3) * 5, y0 + 2.5 + i * 2.1, -90 - i * 8);
       if (dir < 0) av.rotation.y = Math.PI;
       this.root.add(av);
       this.flyingAvs.push({
@@ -699,42 +707,40 @@ export class LevelBuilder {
     }
 
     // North wall & Monumental Doors to Rodion's Council Chamber
-    this.addBoxMeshAndCollider('hall_north', 0, 7, -142.5, 37, 14, 1, wallMat);
+    this.addBoxMeshAndCollider('hall_north', 0, y0 + 7, -142.5, 37, 14, 1, wallMat);
 
-    // Ceremonial red carpet / neon runway straight to Rodion's doors
-    this.addNeonStrip(-2.6, 0.04, -116, 0.16, 0.04, 48, 0xff003c, 2.2);
-    this.addNeonStrip(2.6, 0.04, -116, 0.16, 0.04, 48, 0xff003c, 2.2);
+    this.addNeonStrip(-2.6, y0 + 0.04, -116, 0.16, 0.04, 48, 0xff003c, 1.5);
+    this.addNeonStrip(2.6, y0 + 0.04, -116, 0.16, 0.04, 48, 0xff003c, 1.5);
 
-    // Monumental Council Chamber Double Doors (Z = -141.6)
     const councilDoorMat = new THREE.MeshStandardMaterial({
-      color: 0x160a10,
-      metalness: 0.85,
-      roughness: 0.22,
+      color: 0x241019,
+      metalness: 0.5,
+      roughness: 0.4,
     });
     const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(9.2, 7.6, 0.9), monolithMat);
-    doorFrame.position.set(0, 3.8, -141.8);
+    doorFrame.position.set(0, y0 + 3.8, -141.8);
     this.root.add(doorFrame);
 
     const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(7.6, 6.6, 0.6), councilDoorMat);
-    doorPanel.position.set(0, 3.3, -141.4);
+    doorPanel.position.set(0, y0 + 3.3, -141.4);
     this.root.add(doorPanel);
 
     this.councilDoorGlowMat = new THREE.MeshStandardMaterial({
       color: 0xfcee0a,
       emissive: 0xfcee0a,
-      emissiveIntensity: 2.5,
+      emissiveIntensity: 1.8,
     });
     const doorSeam = new THREE.Mesh(new THREE.BoxGeometry(0.18, 6.4, 0.68), this.councilDoorGlowMat);
-    doorSeam.position.set(0, 3.3, -141.35);
+    doorSeam.position.set(0, y0 + 3.3, -141.35);
     this.root.add(doorSeam);
     const doorArch = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.24, 0.72), this.councilDoorGlowMat);
-    doorArch.position.set(0, 6.75, -141.35);
+    doorArch.position.set(0, y0 + 6.75, -141.35);
     this.root.add(doorArch);
 
     this.addSignPlane(
-      this.textures.getNeonSign('ЗАЛ СОВЕТА // РОДИОН', 'ДОСТУП ТОЛЬКО ДЛЯ СОВЕТА ДИРЕКТОРОВ', '#ff003c', '#fcee0a'),
+      this.textures.getNeonSign('ЗАЛ СОВЕТА // РОДИОН', 'ЭТАЖ 95 // ПЕНТХАУС СОВЕТА ДИРЕКТОРОВ', '#ff003c', '#fcee0a'),
       0,
-      9.6,
+      y0 + 9.6,
       -141.4,
       15.5,
       3.4,
@@ -749,8 +755,8 @@ export class LevelBuilder {
       [10.5, -118],
     ];
     tallCovers.forEach(([x, z], i) => {
-      this.addBoxMeshAndCollider(`hall_pillar_${i}`, x, 3.2, z, 2.8, 6.4, 2.8, monolithMat);
-      this.addNeonStrip(x, 3.2, z + 1.44, 0.16, 5.8, 0.08, 0xff003c, 2.2);
+      this.addBoxMeshAndCollider(`hall_pillar_${i}`, x, y0 + 3.2, z, 2.8, 6.4, 2.8, monolithMat);
+      this.addNeonStrip(x, y0 + 3.2, z + 1.44, 0.16, 5.8, 0.08, 0xff003c, 1.5);
     });
 
     const lowCovers: Array<[number, number]> = [
@@ -760,20 +766,20 @@ export class LevelBuilder {
       [7.0, -128],
     ];
     lowCovers.forEach(([x, z], i) => {
-      this.addBoxMeshAndCollider(`hall_low_${i}`, x, 0.85, z, 3.2, 1.7, 1.4, monolithMat, true, false);
-      this.addNeonStrip(x, 1.72, z, 3.24, 0.07, 1.44, 0xfcee0a, 1.8);
+      this.addBoxMeshAndCollider(`hall_low_${i}`, x, y0 + 0.85, z, 3.2, 1.7, 1.4, monolithMat, true, false);
+      this.addNeonStrip(x, y0 + 1.72, z, 3.24, 0.07, 1.44, 0xfcee0a, 1.4);
     });
 
-    // Supply crates in Sector 3 (helpful before & during Lev Smasher fight!)
-    this.addSupplyCrate('crate_sector3_a', -13.5, -99);
-    this.addSupplyCrate('crate_sector3_b', 13.5, -122);
+    // Supply crates in Sector 3
+    this.addSupplyCrate('crate_sector3_a', -13.5, y0, -99);
+    this.addSupplyCrate('crate_sector3_b', 13.5, y0, -122);
 
     // Dramatic crimson & golden ceiling lighting
     for (const lz of [-96, -109, -122, -135]) {
       const isCrimson = lz === -135;
-      this.addNeonStrip(0, 13.6, lz, 26, 0.2, 0.4, isCrimson ? 0xff003c : 0xfcee0a, 1.5);
+      this.addNeonStrip(0, y0 + 13.6, lz, 26, 0.2, 0.4, isCrimson ? 0xff003c : 0xfcee0a, 1.5);
       const pt = new THREE.PointLight(isCrimson ? 0xff3b62 : 0xf5be6b, isCrimson ? 26 : 28, 36, 1.5);
-      pt.position.set(0, 10.6, lz);
+      pt.position.set(0, y0 + 10.6, lz);
       this.root.add(pt);
       if (isCrimson) this.alarmLights.push(pt);
     }
@@ -803,7 +809,7 @@ export class LevelBuilder {
     const hex = alertRed ? 0xff003c : 0xfcee0a;
     this.councilDoorGlowMat.color.setHex(hex);
     this.councilDoorGlowMat.emissive.setHex(hex);
-    this.councilDoorGlowMat.emissiveIntensity = alertRed ? 4.0 : 2.5;
+    this.councilDoorGlowMat.emissiveIntensity = alertRed ? 2.4 : 1.7;
   }
 
   setInteractableEnabled(id: string, enabled: boolean): void {
@@ -813,11 +819,12 @@ export class LevelBuilder {
     }
   }
 
-  findNearbyInteractable(px: number, pz: number): InteractablePoint | null {
+  findNearbyInteractable(px: number, py: number, pz: number): InteractablePoint | null {
     let best: InteractablePoint | null = null;
     let bestDist = Infinity;
     for (const item of this.interactables) {
       if (!item.enabled) continue;
+      if (Math.abs(item.y - (py + 1.2)) > 4.5) continue;
       const dist = Math.hypot(item.x - px, item.z - pz);
       if (dist <= item.radius && dist < bestDist) {
         bestDist = dist;
@@ -844,11 +851,18 @@ export class LevelBuilder {
   }
 
   resetInteractiveState(): void {
-    this.setDoorOpen('door_atrium', false, true);
-    this.setDoorOpen('door_boss_lock', true, true);
+    this.setDoorOpen('door_elev1_bottom', false, true);
+    this.setDoorOpen('door_elev1_top', false, true);
+    this.setDoorOpen('door_elev2_bottom', false, true);
+    this.setDoorOpen('door_elev2_top', false, true);
     this.setLaserBarrierActive(true);
     this.setCouncilDoorAlert(false);
     this.setInteractableEnabled('terminal_hack', false);
+    this.setInteractableEnabled('elev1_button', false);
+    this.setInteractableEnabled('elev2_button', false);
+
+    this.elev1.reset();
+    this.elev2.reset();
 
     for (const crate of this.supplyCrates) {
       crate.used = false;
@@ -860,7 +874,7 @@ export class LevelBuilder {
     // Rotate Atrium hologram monument
     for (const holo of this.hologramSpinners) {
       holo.rotation.y += dt * 0.65;
-      holo.position.y = 4.3 + Math.sin(totalTime * 1.9) * 0.22;
+      holo.position.y = FLOOR_ATRIUM_Y + 4.3 + Math.sin(totalTime * 1.9) * 0.22;
     }
 
     // Pulse alarm lights
@@ -879,7 +893,7 @@ export class LevelBuilder {
       }
     }
 
-    // Animate flying Night City AVs outside Sector 3 panoramic glass
+    // Animate flying Night City AVs outside Floor 95 panoramic glass
     for (const av of this.flyingAvs) {
       av.mesh.position.z += av.speed * dt;
       if (av.speed > 0 && av.mesh.position.z > av.maxZ) {

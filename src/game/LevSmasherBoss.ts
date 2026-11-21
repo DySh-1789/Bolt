@@ -153,6 +153,7 @@ export class LevSmasherBoss {
   private afterimageSpawnAccum = 0;
   private hitFlashTimer = 0;
   private walkCycle = 0;
+  private floorY = 0;
 
   constructor(scene: THREE.Scene, physics: PhysicsWorld) {
     this.scene = scene;
@@ -294,22 +295,24 @@ export class LevSmasherBoss {
     this.headHitbox.userData = { isBoss: true, isHead: true };
   }
 
-  appearForKnockback(x: number, z: number): void {
+  appearForKnockback(x: number, z: number, floorY = 0): void {
     this.clearEffects();
+    this.floorY = floorY;
     this.state.reset();
     this.state.startKnockback();
     this.group.visible = true;
-    this.group.position.set(x, 0, z);
+    this.group.position.set(x, this.floorY, z);
     this.group.rotation.set(0, 0, 0);
     // Raise left fist in crushing strike pose
     this.leftArmPivot.rotation.x = -1.35;
     this.rightArmPivot.rotation.x = -0.35;
   }
 
-  beginCombat(x = 0, z = -134): void {
+  beginCombat(x = 0, z = -134, floorY = 0): void {
     this.clearEffects();
+    this.floorY = floorY;
     this.group.visible = true;
-    this.group.position.set(x, 0, z);
+    this.group.position.set(x, this.floorY, z);
     this.state.startPhase1();
     this.gunTimer = 1.1;
     this.missileTimer = 3.8;
@@ -335,7 +338,7 @@ export class LevSmasherBoss {
     const dist = 3.1;
     const targetX = Math.max(-15, Math.min(15, playerPos.x + fx * dist));
     const targetZ = Math.max(-138, Math.min(-94, playerPos.z + fz * dist));
-    this.group.position.set(targetX, 0, targetZ);
+    this.group.position.set(targetX, this.floorY, targetZ);
     this.group.rotation.y = Math.atan2(playerPos.x - targetX, playerPos.z - targetZ);
     this.leftArmPivot.rotation.x = -1.6;
     this.spawnShockwave(targetX, targetZ, 7.5);
@@ -415,7 +418,7 @@ export class LevSmasherBoss {
     }
     const toBoss = new THREE.Vector3(
       this.group.position.x - origin.x,
-      1.6 - origin.y,
+      this.floorY + 1.6 - origin.y,
       this.group.position.z - origin.z,
     );
     const dist = toBoss.length();
@@ -469,7 +472,7 @@ export class LevSmasherBoss {
       }
       const nextX = this.group.position.x + this.dashVelocity.x * worldDt;
       const nextZ = this.group.position.z + this.dashVelocity.z * worldDt;
-      const res = this.physics.resolveCylinderMove(this.group.position, nextX, nextZ, 0.95, 0, 2.8);
+      const res = this.physics.resolveCylinderMove(this.group.position, nextX, nextZ, 0.95, this.floorY, 2.8);
       this.group.position.x = res.x;
       this.group.position.z = res.z;
 
@@ -489,13 +492,13 @@ export class LevSmasherBoss {
           this.group.position.x + dirX * speed * worldDt,
           this.group.position.z + dirZ * speed * worldDt,
           0.95,
-          0,
+          this.floorY,
           2.8,
         );
         this.group.position.x = res.x;
         this.group.position.z = res.z;
         this.walkCycle += worldDt * (isPhase2 ? 8 : 5.5);
-        this.group.position.y = Math.abs(Math.sin(this.walkCycle)) * 0.14;
+        this.group.position.y = this.floorY + Math.abs(Math.sin(this.walkCycle)) * 0.14;
       }
 
       if (isPhase2) {
@@ -572,7 +575,7 @@ export class LevSmasherBoss {
       m.timer -= worldDt;
       const progress = 1 - Math.max(0, m.timer / m.maxTimer);
       m.missile.position.lerpVectors(
-        new THREE.Vector3(this.group.position.x - 0.8, 3.2, this.group.position.z),
+        new THREE.Vector3(this.group.position.x - 0.8, this.floorY + 3.2, this.group.position.z),
         m.targetPos,
         progress,
       );
@@ -609,7 +612,7 @@ export class LevSmasherBoss {
   private fireAutocannonBolt(playerEye: Vec3): void {
     const start = new THREE.Vector3(
       this.group.position.x + Math.cos(this.group.rotation.y) * 1.0,
-      2.05,
+      this.floorY + 2.05,
       this.group.position.z - Math.sin(this.group.rotation.y) * 1.0,
     );
     const dir = new THREE.Vector3(
@@ -650,21 +653,21 @@ export class LevSmasherBoss {
         side: THREE.DoubleSide,
       });
       const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.set(tx, 0.08, tz);
+      ring.position.set(tx, this.floorY + 0.08, tz);
       this.scene.add(ring);
 
       const missile = new THREE.Mesh(
         new THREE.SphereGeometry(0.18, 8, 8),
         new THREE.MeshBasicMaterial({ color: 0xfcee0a }),
       );
-      missile.position.set(this.group.position.x, 3.2, this.group.position.z);
+      missile.position.set(this.group.position.x, this.floorY + 3.2, this.group.position.z);
       this.scene.add(missile);
 
       const maxTimer = 1.15 + i * 0.14;
       this.missiles.push({
         ring,
         missile,
-        targetPos: new THREE.Vector3(tx, 0.15, tz),
+        targetPos: new THREE.Vector3(tx, this.floorY + 0.15, tz),
         timer: maxTimer,
         maxTimer,
       });
@@ -681,7 +684,7 @@ export class LevSmasherBoss {
       side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x, 0.12, z);
+    mesh.position.set(x, this.floorY + 0.12, z);
     this.scene.add(mesh);
     this.shockwaves.push({ mesh, radius: 1.0, maxRadius, damagedPlayer: false });
   }
@@ -702,7 +705,7 @@ export class LevSmasherBoss {
       if (dealDamage && !sw.damagedPlayer && callbacks) {
         const d = Math.hypot(playerPos.x - sw.mesh.position.x, playerPos.z - sw.mesh.position.z);
         // Player can jump over shockwave!
-        if (Math.abs(d - sw.radius) < 1.1 && playerPos.y < 0.75) {
+        if (Math.abs(d - sw.radius) < 1.1 && playerPos.y < this.floorY + 0.75) {
           sw.damagedPlayer = true;
           callbacks.onPlayerDamaged(16, 0.65);
         }
@@ -723,7 +726,7 @@ export class LevSmasherBoss {
       wireframe: true,
     });
     const ghost = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.9, 0.95), mat);
-    ghost.position.set(this.group.position.x, 1.45, this.group.position.z);
+    ghost.position.set(this.group.position.x, this.floorY + 1.45, this.group.position.z);
     ghost.rotation.y = this.group.rotation.y;
     this.scene.add(ghost);
     this.afterimages.push({ mesh: ghost, life: 0.45, maxLife: 0.45 });

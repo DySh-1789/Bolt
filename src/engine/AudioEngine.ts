@@ -634,6 +634,84 @@ export class AudioEngine {
     osc2.stop(now + durationSec + 0.45);
   }
 
+  playElevatorDing(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const tones = [
+      { freq: 1046.5, delay: 0, dur: 0.55 },
+      { freq: 1318.5, delay: 0.14, dur: 0.72 },
+    ];
+    for (const t of tones) {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(t.freq, now + t.delay);
+      gain.gain.setValueAtTime(0.001, now + t.delay);
+      gain.gain.linearRampToValueAtTime(0.24, now + t.delay + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + t.delay + t.dur);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(now + t.delay);
+      osc.stop(now + t.delay + t.dur + 0.04);
+    }
+  }
+
+  playElevatorFloorTick(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1480, now);
+    gain.gain.setValueAtTime(0.045, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.032);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.04);
+  }
+
+  playElevatorRide(durationSec = 4.2): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // Low mechanical maglev hum with smooth acceleration and deceleration pitch curve
+    const hum = this.ctx.createOscillator();
+    const whine = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+
+    hum.type = 'sawtooth';
+    hum.frequency.setValueAtTime(48, now);
+    hum.frequency.linearRampToValueAtTime(74, now + durationSec * 0.28);
+    hum.frequency.setValueAtTime(74, now + durationSec * 0.72);
+    hum.frequency.linearRampToValueAtTime(44, now + durationSec);
+
+    whine.type = 'sine';
+    whine.frequency.setValueAtTime(160, now);
+    whine.frequency.linearRampToValueAtTime(340, now + durationSec * 0.3);
+    whine.frequency.setValueAtTime(340, now + durationSec * 0.72);
+    whine.frequency.linearRampToValueAtTime(140, now + durationSec);
+
+    filter.type = 'lowpass';
+    filter.frequency.value = 460;
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.16, now + 0.35);
+    gain.gain.setValueAtTime(0.15, now + durationSec - 0.55);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
+
+    hum.connect(filter);
+    whine.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+
+    hum.start(now);
+    whine.start(now);
+    hum.stop(now + durationSec + 0.05);
+    whine.stop(now + durationSec + 0.05);
+  }
+
   dispose(): void {
     if (this.stepTimer !== null) {
       window.clearInterval(this.stepTimer);

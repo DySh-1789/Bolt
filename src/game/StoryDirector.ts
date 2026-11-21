@@ -17,7 +17,12 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { InputManager } from '../engine/InputManager';
 import { PlayerController } from './Player';
 import { WeaponSystem } from './WeaponSystem';
-import { LevelBuilder } from './LevelBuilder';
+import {
+  FLOOR_ATRIUM_Y,
+  FLOOR_COUNCIL_Y,
+  FLOOR_SERVER_Y,
+  LevelBuilder,
+} from './LevelBuilder';
 import { EnemyManager } from './EnemyManager';
 import { LevSmasherBoss } from './LevSmasherBoss';
 import { OperatingTableScene } from './OperatingTableScene';
@@ -297,60 +302,60 @@ export class StoryDirector {
     this.story.transitionTo('ATRIUM');
     this.actTimer = 0;
     this.player.setMode('FREE');
-    this.checkpoint = { act: 'ATRIUM', x: 0, y: 0, z: 14, yaw: 0 };
+    this.checkpoint = { act: 'ATRIUM', x: 0, y: FLOOR_ATRIUM_Y, z: 14, yaw: 0 };
     this.audio.setMusicIntensity('combat');
-    this.hud.setQuest('Уничтожить корпо-охрану в Атриуме', 'СЕКТОР 01 // ГЛАВНЫЙ АТРИУМ');
+    this.hud.setQuest('Уничтожить корпо-охрану в Атриуме', 'ЭТАЖ 01 // ГЛАВНЫЙ АТРИУМ');
 
     this.enemies.clearAll();
     this.enemies.spawnWave([
-      { archetype: 'guard', x: -7, z: -2 },
-      { archetype: 'guard', x: 7, z: -2 },
-      { archetype: 'guard', x: -4.5, z: -14 },
-      { archetype: 'guard', x: 4.5, z: -14 },
-      { archetype: 'drone', x: 0, z: -11 },
-      { archetype: 'drone', x: -9, z: -18 },
+      { archetype: 'guard', x: -7, z: -2, floorY: FLOOR_ATRIUM_Y },
+      { archetype: 'guard', x: 7, z: -2, floorY: FLOOR_ATRIUM_Y },
+      { archetype: 'guard', x: -4.5, z: -14, floorY: FLOOR_ATRIUM_Y },
+      { archetype: 'guard', x: 4.5, z: -14, floorY: FLOOR_ATRIUM_Y },
+      { archetype: 'drone', x: 0, z: -11, floorY: FLOOR_ATRIUM_Y },
+      { archetype: 'drone', x: -9, z: -18, floorY: FLOOR_ATRIUM_Y },
     ]);
   }
 
   private enterServerRoom(): void {
     this.story.transitionTo('SERVER_ROOM');
     this.actTimer = 0;
-    this.checkpoint = { act: 'SERVER_ROOM', x: 0, y: 0, z: -34, yaw: 0 };
+    this.checkpoint = { act: 'SERVER_ROOM', x: 0, y: FLOOR_SERVER_Y, z: -40, yaw: 0 };
     this.audio.setMusicIntensity('combat');
-    this.hud.setQuest('Зачистить Серверный узел и найти терминал', 'СЕКТОР 02 // КИБЕРБЕЗОПАСНОСТЬ');
+    this.hud.setQuest('Зачистить Серверный узел и найти терминал', 'ЭТАЖ 42 // КИБЕРБЕЗОПАСНОСТЬ');
 
-    this.queueLine('system', 'ТРЕВОГА: Вторжение в Серверный узел. Активированы турели и нетраннеры.', 3.8, true);
+    this.queueLine('system', 'ТРЕВОГА: Вторжение на 42-й этаж. Активированы турели и нетраннеры.', 3.8, true);
     this.queueLine('samir', 'Нетраннеры... Надо сбивать их взлом, пока импланты не сгорели.', 3.6);
 
     this.enemies.clearAll();
     this.enemies.spawnWave([
-      { archetype: 'guard', x: -6, z: -50 },
-      { archetype: 'guard', x: 6, z: -52 },
-      { archetype: 'netrunner', x: 0, z: -62 },
-      { archetype: 'turret', x: -9, z: -63 },
-      { archetype: 'turret', x: 9, z: -63 },
-      { archetype: 'drone', x: 0, z: -54 },
-      { archetype: 'heavy', x: 0, z: -72 },
+      { archetype: 'guard', x: -6, z: -50, floorY: FLOOR_SERVER_Y },
+      { archetype: 'guard', x: 6, z: -52, floorY: FLOOR_SERVER_Y },
+      { archetype: 'netrunner', x: 0, z: -62, floorY: FLOOR_SERVER_Y },
+      { archetype: 'turret', x: -9, z: -63, floorY: FLOOR_SERVER_Y },
+      { archetype: 'turret', x: 9, z: -63, floorY: FLOOR_SERVER_Y },
+      { archetype: 'drone', x: 0, z: -54, floorY: FLOOR_SERVER_Y },
+      { archetype: 'heavy', x: 0, z: -72, floorY: FLOOR_SERVER_Y },
     ]);
   }
 
   private enterCouncilHall(): void {
     this.story.transitionTo('COUNCIL_HALL');
     this.actTimer = 0;
-    this.checkpoint = { act: 'COUNCIL_HALL', x: 0, y: 0, z: -86, yaw: 0 };
+    this.checkpoint = { act: 'COUNCIL_HALL', x: 0, y: FLOOR_COUNCIL_Y, z: -92, yaw: 0 };
     this.audio.setMusicIntensity('combat');
-    this.hud.setQuest('Прорваться к дверям Зала Совета Родиона', 'СЕКТОР 03 // ПРЕДБАННИК СОВЕТА');
+    this.hud.setQuest('Прорваться к дверям Зала Совета Родиона', 'ЭТАЖ 95 // ПЕНТХАУС СОВЕТА');
 
-    this.queueLine('rodion', 'Впечатляет, Самир. Ты дошёл почти до самого верха. Но дальше — стена.', 4.4, true);
+    this.queueLine('rodion', 'Добро пожаловать на 95-й этаж, Самир. Ты дошёл почти до вершины — но дальше стена.', 4.4, true);
 
     this.enemies.clearAll();
     this.enemies.spawnWave([
-      { archetype: 'heavy', x: -6, z: -108 },
-      { archetype: 'heavy', x: 6, z: -108 },
-      { archetype: 'netrunner', x: 0, z: -122 },
-      { archetype: 'guard', x: -11, z: -124 },
-      { archetype: 'guard', x: 11, z: -124 },
-      { archetype: 'drone', x: 0, z: -114 },
+      { archetype: 'heavy', x: -6, z: -108, floorY: FLOOR_COUNCIL_Y },
+      { archetype: 'heavy', x: 6, z: -108, floorY: FLOOR_COUNCIL_Y },
+      { archetype: 'netrunner', x: 0, z: -122, floorY: FLOOR_COUNCIL_Y },
+      { archetype: 'guard', x: -11, z: -124, floorY: FLOOR_COUNCIL_Y },
+      { archetype: 'guard', x: 11, z: -124, floorY: FLOOR_COUNCIL_Y },
+      { archetype: 'drone', x: 0, z: -114, floorY: FLOOR_COUNCIL_Y },
     ]);
   }
 
@@ -359,18 +364,18 @@ export class StoryDirector {
     this.actTimer = 0;
     this.knockbackSlamTriggered = false;
 
-    // Seal exit behind Samir and turn Council Doors crimson!
-    this.level.setDoorOpen('door_boss_lock', false, false);
+    // Seal elevator exit behind Samir and turn Council Doors crimson!
+    this.level.setDoorOpen('door_elev2_top', false, false);
     this.level.setCouncilDoorAlert(true);
     this.audio.setMusicIntensity('boss');
     this.audio.playSmasherRoar();
 
-    // Lev Smasher bursts directly in front of Rodion's doors!
-    this.boss.appearForKnockback(0, -135.5);
+    // Lev Smasher bursts directly in front of Rodion's doors on Floor 95!
+    this.boss.appearForKnockback(0, -135.5, FLOOR_COUNCIL_Y);
     this.fx.glitch = 0.85;
     this.fx.chromaticBoost = 0.7;
     this.player.addShake(0.95);
-    this.hud.setQuest('ЗАСАДА ПЕРЕД ЗАЛОМ РОДИОНА!', 'КРИТИЧЕСКАЯ УГРОЗА // ЛЕВ СМЭШЕР');
+    this.hud.setQuest('ЗАСАДА ПЕРЕД ЗАЛОМ РОДИОНА!', 'ЭТАЖ 95 // КРИТИЧЕСКАЯ УГРОЗА');
 
     this.queueLine(
       'smasher',
@@ -384,9 +389,9 @@ export class StoryDirector {
     this.story.transitionTo('BOSS_FIGHT');
     this.actTimer = 0;
     this.player.setMode('FREE');
-    this.checkpoint = { act: 'BOSS_FIGHT', x: 0, y: 0, z: -113, yaw: 0 };
+    this.checkpoint = { act: 'BOSS_FIGHT', x: 0, y: FLOOR_COUNCIL_Y, z: -113, yaw: 0 };
 
-    this.boss.beginCombat(0, -133);
+    this.boss.beginCombat(0, -133, FLOOR_COUNCIL_Y);
     this.hud.setBossBar(true, 1.0, 'ФАЗА I // АВТОПУШКА И МИКРОРАКЕТЫ');
     this.hud.setQuest('Сразиться со Львом Смэшером', 'БОСС // ПЕРЕД ЗАЛОМ РОДИОНА');
     this.audio.setMusicIntensity('boss');
@@ -539,10 +544,18 @@ export class StoryDirector {
     if (this.checkpoint.act === 'ATRIUM') {
       this.enterAtrium();
     } else if (this.checkpoint.act === 'SERVER_ROOM') {
+      this.level.elev1.snapToTop();
+      this.level.setDoorOpen('door_elev1_top', true, true);
       this.enterServerRoom();
     } else if (this.checkpoint.act === 'COUNCIL_HALL') {
+      this.level.elev1.snapToTop();
+      this.level.elev2.snapToTop();
+      this.level.setDoorOpen('door_elev2_top', true, true);
       this.enterCouncilHall();
     } else if (this.checkpoint.act === 'BOSS_FIGHT') {
+      this.level.elev1.snapToTop();
+      this.level.elev2.snapToTop();
+      this.level.setDoorOpen('door_elev2_top', false, true);
       this.enterBossFight();
     }
   }
@@ -647,13 +660,58 @@ export class StoryDirector {
   }
 
   private handleInteraction(interactableId: string): void {
+    if (interactableId === 'elev1_button') {
+      if (!this.level.elev1.isPlayerInside(this.player.position.x, this.player.position.z)) return;
+      if (this.level.elev1.state.startRide()) {
+        this.level.elev1.syncVisuals();
+        this.level.setDoorOpen('door_elev1_bottom', false, false);
+        this.level.setInteractableEnabled('elev1_button', false);
+        this.audio.setMusicIntensity('ambient');
+        this.audio.playElevatorRide(this.level.elev1.state.rideDuration + 0.5);
+        this.player.addShake(0.14);
+        this.hud.setQuest('Подъём на Этаж 42 — Серверный узел', 'ЛИФТ MARAKULIN EXPRESS // В ПУТИ');
+        this.queueLine(
+          'rodion',
+          'Едешь на 42-й? Мои нетраннеры уже ждут тебя у выхода из лифта, Самир.',
+          4.0,
+          true,
+        );
+      }
+      return;
+    }
+
+    if (interactableId === 'elev2_button') {
+      if (!this.level.elev2.isPlayerInside(this.player.position.x, this.player.position.z)) return;
+      if (this.level.elev2.state.startRide()) {
+        this.level.elev2.syncVisuals();
+        this.level.setDoorOpen('door_elev2_bottom', false, false);
+        this.level.setInteractableEnabled('elev2_button', false);
+        this.audio.setMusicIntensity('ambient');
+        this.audio.playElevatorRide(this.level.elev2.state.rideDuration + 0.5);
+        this.player.addShake(0.14);
+        this.hud.setQuest('Подъём на Этаж 95 — Пентхаус Совета', 'ЭКСПРЕСС-ЛИФТ СОВЕТА // В ПУТИ');
+        this.queueLine(
+          'samir',
+          'Девяносто пятый этаж. Время закончить это, Родион.',
+          3.8,
+          true,
+        );
+      }
+      return;
+    }
+
     if (interactableId === 'terminal_hack' && !this.laserHacked) {
       this.laserHacked = true;
       this.level.setLaserBarrierActive(false);
       this.level.setInteractableEnabled('terminal_hack', false);
+      this.level.elev2.state.unlock();
+      this.level.elev2.syncVisuals();
+      this.level.setDoorOpen('door_elev2_bottom', true, false);
+      this.level.setInteractableEnabled('elev2_button', true);
       this.audio.playTerminalHack();
-      this.hud.setQuest('Пройдите в Предбанник Зала Совета', 'СЕКТОР 02 -> СЕКТОР 03');
-      this.queueLine('samir', 'Барьер снят. Родион — ты следующий.', 3.2, true);
+      this.audio.playElevatorDing();
+      this.hud.setQuest('Войдите в лифт пентхауса и нажмите [E] → Этаж 95', 'ЭТАЖ 42 // ЛИФТ ОТКРЫТ');
+      this.queueLine('samir', 'Барьер отключён, лифт в пентхаус открыт. Поехали наверх.', 3.4, true);
       return;
     }
 
@@ -662,6 +720,43 @@ export class StoryDirector {
       this.player.state.refillSupplies();
       this.audio.playMaxDoc();
       this.queueLine('system', 'Пополнен запас ингаляторов MaxDoc и кибер-брони.', 2.4, true);
+    }
+  }
+
+  private updateElevators(dt: number): void {
+    const elevators = [
+      { rig: this.level.elev1, topDoor: 'door_elev1_top', arrivalQuest: 'Выйдите из лифта в Серверный узел (Этаж 42)', arrivalSub: 'ЭТАЖ 42 // ПРИБЫТИЕ' },
+      { rig: this.level.elev2, topDoor: 'door_elev2_top', arrivalQuest: 'Выйдите из лифта в Предбанник Совета (Этаж 95)', arrivalSub: 'ЭТАЖ 95 // ПРИБЫТИЕ' },
+    ];
+
+    for (const entry of elevators) {
+      const st = entry.rig.state.status;
+      if (st !== 'CLOSING' && st !== 'MOVING') continue;
+
+      const res = entry.rig.update(dt);
+      // Carry Samir physically upward with the moving 3D elevator cabin!
+      if (entry.rig.isPlayerInside(this.player.position.x, this.player.position.z)) {
+        this.player.syncElevatorY(res.currentY);
+      }
+
+      if (res.beganMoving) {
+        this.player.addShake(0.1);
+      }
+      if (res.floorChanged) {
+        this.audio.playElevatorFloorTick();
+        const fl = String(res.currentFloor).padStart(2, '0');
+        this.hud.setQuest(
+          `Подъём: ${entry.rig.config.destinationTitle}`,
+          `ЭТАЖ ${fl} // MARAKULIN EXPRESS`,
+        );
+      }
+      if (res.arrived) {
+        this.player.syncElevatorY(res.currentY);
+        this.player.addShake(0.18);
+        this.audio.playElevatorDing();
+        this.level.setDoorOpen(entry.topDoor, true, false);
+        this.hud.setQuest(entry.arrivalQuest, entry.arrivalSub);
+      }
     }
   }
 
@@ -709,6 +804,9 @@ export class StoryDirector {
       this.fx.damageVignette = Math.max(lowHpVignette, this.fx.damageVignette - dt * 1.25);
     }
 
+    // Update physical moving elevators BEFORE player movement so groundY is exact
+    this.updateElevators(dt);
+
     // Player movement & abilities
     const playerRes = this.player.update(dt, input, this.physics);
     if (playerRes.dashed) {
@@ -752,8 +850,12 @@ export class StoryDirector {
         this.handlePlayerMelee();
       }
 
-      // Check nearby interactables
-      const nearby = this.level.findNearbyInteractable(this.player.position.x, this.player.position.z);
+      // Check nearby interactables on current floor
+      const nearby = this.level.findNearbyInteractable(
+        this.player.position.x,
+        this.player.position.y,
+        this.player.position.z,
+      );
       this.hud.setInteractPrompt(nearby ? nearby.label : null);
       if (nearby && input.interactPressed) {
         this.handleInteraction(nearby.id);
@@ -830,12 +932,15 @@ export class StoryDirector {
       case 'ATRIUM': {
         if (!this.atriumCleared && this.enemies.getAliveCount() === 0) {
           this.atriumCleared = true;
-          this.level.setDoorOpen('door_atrium', true, false);
-          this.audio.playTerminalHack();
-          this.hud.setQuest('Пройдите в шлюз Серверного узла (Север)', 'СЕКТОР 01 ЗАЧИЩЕН');
-          this.queueLine('samir', 'Атриум чист. Поднимаюсь к серверному узлу.', 3.0, true);
+          this.level.elev1.state.unlock();
+          this.level.elev1.syncVisuals();
+          this.level.setDoorOpen('door_elev1_bottom', true, false);
+          this.level.setInteractableEnabled('elev1_button', true);
+          this.audio.playElevatorDing();
+          this.hud.setQuest('Войдите в лифт и нажмите [E] → Этаж 42', 'ЭТАЖ 01 ЗАЧИЩЕН // ЛИФТ ОТКРЫТ');
+          this.queueLine('samir', 'Атриум чист. Захожу в лифт — поднимаюсь в Серверный узел.', 3.2, true);
         }
-        if (this.atriumCleared && this.player.position.z <= -36) {
+        if (this.level.elev1.state.status === 'ARRIVED' && this.player.position.z <= -39.2) {
           this.enterServerRoom();
         }
         break;
@@ -845,15 +950,15 @@ export class StoryDirector {
         if (!this.serverCleared && this.enemies.getAliveCount() === 0) {
           this.serverCleared = true;
           this.level.setInteractableEnabled('terminal_hack', true);
-          this.hud.setQuest('Взломать терминал лазерного барьера [E]', 'СЕКТОР 02 // ОХРАНА УСТРАНЕНА');
+          this.hud.setQuest('Взломать терминал лазерного барьера [E]', 'ЭТАЖ 42 // ОХРАНА УСТРАНЕНА');
           this.queueLine(
             'samir',
-            'Терминал справа от лазеров. Надо отключить барьер и двигаться к Совету.',
+            'Терминал справа от лазеров. Сниму защиту и вызову лифт на 95-й этаж.',
             3.6,
             true,
           );
         }
-        if (this.laserHacked && this.player.position.z <= -88) {
+        if (this.level.elev2.state.status === 'ARRIVED' && this.player.position.z <= -91.2) {
           this.enterCouncilHall();
         }
         break;

@@ -300,7 +300,11 @@ export class WeaponSystem {
     this.clearDroppedWeapon();
     const prop = new THREE.Group();
     this.buildMalorianMesh(prop);
-    prop.position.set(position.x + Math.cos(yaw) * 0.85, 0.06, position.z - Math.sin(yaw) * 0.85 - 1.1);
+    prop.position.set(
+      position.x + Math.cos(yaw) * 0.85,
+      position.y + 0.06,
+      position.z - Math.sin(yaw) * 0.85 - 1.1,
+    );
     prop.rotation.set(0.1, yaw + 0.9, Math.PI / 2 - 0.08);
     prop.scale.setScalar(1.3);
     this.scene.add(prop);
