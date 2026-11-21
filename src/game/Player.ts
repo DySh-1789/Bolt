@@ -119,6 +119,7 @@ export class PlayerController {
   private shakeIntensity = 0;
   private dashTimer = 0;
   private dashDir = new THREE.Vector3();
+  private aimBlend = 0;
 
   // Knockback cinematic parameters
   private knockbackStart = new THREE.Vector3();
@@ -151,6 +152,7 @@ export class PlayerController {
     this.roll = 0;
     this.grounded = true;
     this.dashTimer = 0;
+    this.aimBlend = 0;
     this.shakeIntensity = 0;
     this.headBobPhase = 0;
     this.camera.fov = this.baseFov;
@@ -167,6 +169,9 @@ export class PlayerController {
 
   setMode(mode: CameraMode): void {
     this.mode = mode;
+    if (mode !== 'FREE') {
+      this.aimBlend = 0;
+    }
     if (mode === 'FALLEN') {
       this.fallenBaseYaw = this.yaw;
       this.fallenTime = 0;
@@ -176,6 +181,10 @@ export class PlayerController {
     } else if (mode === 'FREE') {
       this.roll = 0;
     }
+  }
+
+  getAimBlend(): number {
+    return this.aimBlend;
   }
 
   /**
@@ -192,6 +201,7 @@ export class PlayerController {
 
   startKnockback(targetZ: number, targetX = 0): void {
     this.mode = 'KNOCKBACK';
+    this.aimBlend = 0;
     this.knockbackStart.copy(this.position);
     this.knockbackEnd.set(targetX, this.groundY, targetZ);
     this.knockbackProgress = 0;
@@ -234,6 +244,7 @@ export class PlayerController {
     input: InputSnapshot,
     physics: PhysicsWorld,
     inMovingElevator = false,
+    canAim = false,
   ): {
     dashed: boolean;
     sandevistanChanged: boolean;
@@ -249,10 +260,14 @@ export class PlayerController {
 
     this.shakeIntensity = Math.max(0, this.shakeIntensity - dt * 2.8);
 
+    const targetAim = this.mode === 'FREE' && canAim && input.aimHeld && this.dashTimer <= 0 ? 1 : 0;
+    this.aimBlend += (targetAim - this.aimBlend) * Math.min(1, dt * 14);
+
     if (this.mode === 'FREE') {
-      // Mouse look
-      this.yaw -= input.mouseDeltaX;
-      this.pitch = Math.max(-1.32, Math.min(1.32, this.pitch - input.mouseDeltaY));
+      // Mouse look (steadier precision sensitivity while aiming down sights)
+      const aimSensScale = THREE.MathUtils.lerp(1.0, 0.56, this.aimBlend);
+      this.yaw -= input.mouseDeltaX * aimSensScale;
+      this.pitch = Math.max(-1.32, Math.min(1.32, this.pitch - input.mouseDeltaY * aimSensScale));
 
       // Abilities
       if (input.sandevistanPressed) {
@@ -293,7 +308,8 @@ export class PlayerController {
         }
       }
 
-      const baseSpeed = this.state.sandevistanActive ? 9.6 : 7.8;
+      const aimMoveScale = THREE.MathUtils.lerp(1.0, 0.72, this.aimBlend);
+      const baseSpeed = (this.state.sandevistanActive ? 9.6 : 7.8) * aimMoveScale;
       let moveX = wishX * baseSpeed;
       let moveZ = wishZ * baseSpeed;
 
@@ -347,14 +363,14 @@ export class PlayerController {
         }
       }
 
-      // Headbob & strafe tilt (framerate-independent)
+      // Headbob & strafe tilt (framerate-independent, dampened while ADS)
       const moving = wishLen > 0.1 && this.grounded;
       if (moving) {
         this.headBobPhase += dt * (this.state.sandevistanActive ? 13 : 10.5);
       } else {
         this.headBobPhase *= Math.exp(-6 * dt);
       }
-      const targetRoll = -input.moveRight * 0.025;
+      const targetRoll = -input.moveRight * 0.025 * THREE.MathUtils.lerp(1.0, 0.35, this.aimBlend);
       this.roll += (targetRoll - this.roll) * Math.min(1, dt * 10);
     } else if (this.mode === 'INTRO') {
       // Gentle cinematic breath & mouse subtle look
@@ -416,10 +432,12 @@ export class PlayerController {
   }
 
   private syncCamera(dt: number): void {
-    // Dynamic FOV punch on dash or Sandevistan
-    const targetFov = this.dashTimer > 0 ? 88 : this.state.sandevistanActive ? 83 : this.baseFov;
+    // Dynamic FOV punch on dash / Sandevistan, and crisp zoom-in on ADS (right click)
+    const hipFov = this.dashTimer > 0 ? 88 : this.state.sandevistanActive ? 83 : this.baseFov;
+    const adsFov = this.state.sandevistanActive ? 58 : 52;
+    const targetFov = THREE.MathUtils.lerp(hipFov, adsFov, this.aimBlend);
     if (Math.abs(this.camera.fov - targetFov) > 0.05) {
-      this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 10);
+      this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 14);
       this.camera.updateProjectionMatrix();
     }
 
@@ -449,7 +467,8 @@ export class PlayerController {
       const smooth = collapseT * collapseT * (3 - 2 * collapseT);
       eyeOffsetY = THREE.MathUtils.lerp(this.eyeHeight, 0.32, smooth);
     } else if (this.mode === 'FREE') {
-      eyeOffsetY += Math.sin(this.headBobPhase) * 0.045;
+      const bobScale = THREE.MathUtils.lerp(1.0, 0.25, this.aimBlend);
+      eyeOffsetY += Math.sin(this.headBobPhase) * 0.045 * bobScale;
     }
 
     this.camera.position.set(

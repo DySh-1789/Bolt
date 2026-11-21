@@ -211,13 +211,24 @@ export class WeaponSystem {
     guard.position.set(0, -0.032, -0.065);
     target.add(guard);
 
-    // Holographic rear iron sights (cyan dots)
+    // Holographic rear iron sights (cyan dots) + front sight post (yellow-crimson)
     const sightL = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.014, 0.012), cyanSight);
     sightL.position.set(-0.018, 0.095, 0.045);
     target.add(sightL);
     const sightR = sightL.clone();
     sightR.position.x = 0.018;
     target.add(sightR);
+
+    const frontSight = new THREE.Mesh(
+      new THREE.BoxGeometry(0.008, 0.014, 0.012),
+      new THREE.MeshStandardMaterial({
+        color: 0xfcee0a,
+        emissive: 0xfcee0a,
+        emissiveIntensity: 2.8,
+      }),
+    );
+    frontSight.position.set(0, 0.095, -0.34);
+    target.add(frontSight);
   }
 
   setVisible(visible: boolean): void {
@@ -228,9 +239,10 @@ export class WeaponSystem {
     this.introSpinTimer = 1.15;
   }
 
-  triggerFireVisual(hitPoint: THREE.Vector3): void {
-    this.recoilKick = 0.11;
-    this.recoilPitch = 0.26;
+  triggerFireVisual(hitPoint: THREE.Vector3, aimBlend = 0): void {
+    const recoilScale = THREE.MathUtils.lerp(1.0, 0.6, aimBlend);
+    this.recoilKick = 0.11 * recoilScale;
+    this.recoilPitch = 0.26 * recoilScale;
     this.muzzleFlashTimer = 0.055;
     this.muzzleLight.intensity = 6.5;
     (this.muzzleFlashMesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
@@ -351,6 +363,7 @@ export class WeaponSystem {
     (this.muzzleFlashMesh.material as THREE.MeshBasicMaterial).opacity = 0;
     this.gunPivot.position.set(0, 0, 0);
     this.gunPivot.rotation.set(0, 0, 0);
+    this.viewModel.position.set(0.24, -0.22, -0.44);
 
     for (const tr of this.tracers) {
       this.scene.remove(tr.line);
@@ -366,7 +379,7 @@ export class WeaponSystem {
     this.flames = [];
   }
 
-  update(dt: number, isMoving: boolean): { reloadCompleted: boolean } {
+  update(dt: number, isMoving: boolean, aimBlend = 0): { reloadCompleted: boolean } {
     const res = this.state.update(dt);
 
     // Update ammo rail glow intensity & color
@@ -396,10 +409,19 @@ export class WeaponSystem {
     this.recoilKick += (0 - this.recoilKick) * Math.min(1, dt * 15);
     this.recoilPitch += (0 - this.recoilPitch) * Math.min(1, dt * 13);
 
-    // Sway
+    // Smoothly align Malorian iron sights with screen center while aiming down sights
+    const effectiveAim = this.state.reloading || this.meleeAnimTimer > 0 || this.introSpinTimer > 0 ? 0 : aimBlend;
+    this.viewModel.position.set(
+      THREE.MathUtils.lerp(0.24, 0.0, effectiveAim),
+      THREE.MathUtils.lerp(-0.22, -0.096, effectiveAim),
+      THREE.MathUtils.lerp(-0.44, -0.32, effectiveAim),
+    );
+
+    // Sway (tightly stabilized while aiming down sights)
+    const swayScale = THREE.MathUtils.lerp(1.0, 0.22, effectiveAim);
     this.swayTime += dt * (isMoving ? 9.5 : 2.2);
-    const swayX = Math.cos(this.swayTime) * (isMoving ? 0.012 : 0.0025);
-    const swayY = Math.abs(Math.sin(this.swayTime)) * (isMoving ? 0.012 : 0.002);
+    const swayX = Math.cos(this.swayTime) * (isMoving ? 0.012 : 0.0025) * swayScale;
+    const swayY = Math.abs(Math.sin(this.swayTime)) * (isMoving ? 0.012 : 0.002) * swayScale;
 
     // Always tick animation timers so melee never replays late after a reload completes
     if (this.introSpinTimer > 0) {

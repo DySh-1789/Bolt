@@ -411,6 +411,12 @@ body {
   transform: translate(-50%, -50%);
   width: 36px;
   height: 36px;
+  transition: width 0.12s ease-out, height 0.12s ease-out;
+}
+
+.crosshair-wrap.aiming {
+  width: 20px;
+  height: 20px;
 }
 
 .crosshair-dot {
@@ -423,11 +429,23 @@ body {
   border-radius: 50%;
   background: var(--cp-cyan);
   box-shadow: 0 0 8px var(--cp-cyan);
+  transition: background 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+
+.crosshair-wrap.aiming .crosshair-dot {
+  background: var(--cp-yellow);
+  box-shadow: 0 0 10px var(--cp-yellow);
 }
 
 .crosshair-line {
   position: absolute;
   background: rgba(0, 240, 255, 0.85);
+  transition: opacity 0.12s ease-out, background 0.12s ease-out;
+}
+
+.crosshair-wrap.aiming .crosshair-line {
+  opacity: 0.45;
+  background: rgba(252, 238, 10, 0.85);
 }
 
 .crosshair-line.top { top: 2px; left: 50%; width: 2px; height: 8px; margin-left: -1px; }

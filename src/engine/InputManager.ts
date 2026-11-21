@@ -5,6 +5,7 @@ export interface InputSnapshot {
   dashPressed: boolean;
   fireHeld: boolean;
   firePressed: boolean;
+  aimHeld: boolean;
   reloadPressed: boolean;
   sandevistanPressed: boolean;
   meleePressed: boolean;
@@ -20,6 +21,7 @@ export class InputManager {
   private justPressed = new Set<string>();
   private mouseDown = false;
   private mouseJustPressed = false;
+  private rightMouseDown = false;
   private accumMouseX = 0;
   private accumMouseY = 0;
   private locked = false;
@@ -51,6 +53,7 @@ export class InputManager {
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mouseup', this.handleMouseUp);
+    window.addEventListener('contextmenu', this.handleContextMenu);
     window.addEventListener('blur', this.handleBlur);
     document.addEventListener('pointerlockchange', this.handlePointerLockChange);
     this.targetEl.addEventListener('click', this.handleViewportClick);
@@ -59,6 +62,12 @@ export class InputManager {
   private handleViewportClick = (): void => {
     if (!this.locked) {
       this.onViewportClick?.();
+    }
+  };
+
+  private handleContextMenu = (e: MouseEvent): void => {
+    if (this.locked || e.target === this.targetEl || this.targetEl.contains(e.target as Node)) {
+      e.preventDefault();
     }
   };
 
@@ -95,15 +104,20 @@ export class InputManager {
   };
 
   private handleMouseDown = (e: MouseEvent): void => {
-    if (e.button !== 0) return;
     if (!this.locked) return;
-    this.mouseDown = true;
-    this.mouseJustPressed = true;
+    if (e.button === 0) {
+      this.mouseDown = true;
+      this.mouseJustPressed = true;
+    } else if (e.button === 2) {
+      this.rightMouseDown = true;
+    }
   };
 
   private handleMouseUp = (e: MouseEvent): void => {
     if (e.button === 0) {
       this.mouseDown = false;
+    } else if (e.button === 2) {
+      this.rightMouseDown = false;
     }
   };
 
@@ -112,6 +126,7 @@ export class InputManager {
     this.justPressed.clear();
     this.mouseDown = false;
     this.mouseJustPressed = false;
+    this.rightMouseDown = false;
     this.accumMouseX = 0;
     this.accumMouseY = 0;
   };
@@ -127,6 +142,7 @@ export class InputManager {
       this.justPressed.clear();
       this.mouseDown = false;
       this.mouseJustPressed = false;
+      this.rightMouseDown = false;
       this.accumMouseX = 0;
       this.accumMouseY = 0;
     }
@@ -185,6 +201,7 @@ export class InputManager {
       dashPressed: this.justPressed.has('ShiftLeft') || this.justPressed.has('ShiftRight'),
       fireHeld: this.mouseDown,
       firePressed: this.mouseJustPressed,
+      aimHeld: this.rightMouseDown,
       reloadPressed: this.justPressed.has('KeyR'),
       sandevistanPressed: this.justPressed.has('KeyQ'),
       meleePressed: this.justPressed.has('KeyF') || this.justPressed.has('KeyV'),
@@ -206,6 +223,7 @@ export class InputManager {
   clearTransient(): void {
     this.justPressed.clear();
     this.mouseJustPressed = false;
+    this.rightMouseDown = false;
     this.accumMouseX = 0;
     this.accumMouseY = 0;
   }
@@ -216,6 +234,7 @@ export class InputManager {
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('mousedown', this.handleMouseDown);
     window.removeEventListener('mouseup', this.handleMouseUp);
+    window.removeEventListener('contextmenu', this.handleContextMenu);
     window.removeEventListener('blur', this.handleBlur);
     document.removeEventListener('pointerlockchange', this.handlePointerLockChange);
     this.targetEl.removeEventListener('click', this.handleViewportClick);

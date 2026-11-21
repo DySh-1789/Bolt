@@ -300,6 +300,13 @@ export class HUD {
     this.vitalsPanel.classList.toggle('hidden', !visible);
     this.crosshairWrap.classList.toggle('hidden', !visible);
     this.weaponPanel.classList.toggle('hidden', !visible);
+    if (!visible) {
+      this.crosshairWrap.classList.remove('aiming');
+    }
+  }
+
+  setAiming(aiming: boolean): void {
+    this.crosshairWrap.classList.toggle('aiming', aiming);
   }
 
   updateVitals(

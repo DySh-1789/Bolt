@@ -632,7 +632,8 @@ export class StoryDirector {
     if (!wasReloading && this.weapon.state.reloading) {
       this.audio.playReload();
     }
-    this.player.addShake(0.18);
+    const aimBlend = this.player.getAimBlend();
+    this.player.addShake(THREE.MathUtils.lerp(0.18, 0.1, aimBlend));
 
     const origin = new THREE.Vector3(
       this.engine.camera.position.x,
@@ -653,7 +654,7 @@ export class StoryDirector {
       if (enemyHit.killed) this.story.recordKill();
       this.hud.flashHitmarker(enemyHit.headshot);
       this.audio.playHitMarker(enemyHit.headshot);
-      this.weapon.triggerFireVisual(tracerEnd);
+      this.weapon.triggerFireVisual(tracerEnd, aimBlend);
       return;
     }
 
@@ -673,7 +674,7 @@ export class StoryDirector {
       if (bossHit.triggeredFinisher) {
         this.enterSamirDefeated();
       }
-      this.weapon.triggerFireVisual(tracerEnd);
+      this.weapon.triggerFireVisual(tracerEnd, aimBlend);
       return;
     }
 
@@ -682,7 +683,7 @@ export class StoryDirector {
     if (wallRay.hit) {
       this.enemies.spawnSparks(tracerEnd, 4, 0x00f0ff);
     }
-    this.weapon.triggerFireVisual(tracerEnd);
+    this.weapon.triggerFireVisual(tracerEnd, aimBlend);
   }
 
   private handlePlayerMelee(): void {
@@ -895,8 +896,9 @@ export class StoryDirector {
     // Update physical moving elevators BEFORE player movement so groundY is exact
     const inMovingElevator = this.updateElevators(dt);
 
-    // Player movement & abilities
-    const playerRes = this.player.update(dt, input, this.physics, inMovingElevator);
+    // Player movement & abilities (ADS allowed in combat acts while not reloading)
+    const canAim = this.isCombatAct() && !this.weapon.state.reloading;
+    const playerRes = this.player.update(dt, input, this.physics, inMovingElevator, canAim);
     if (playerRes.dashed) {
       this.audio.playDash();
       this.fx.chromaticBoost = 0.45;
@@ -951,7 +953,9 @@ export class StoryDirector {
     }
 
     const isMoving = Math.abs(input.moveForward) > 0 || Math.abs(input.moveRight) > 0;
-    this.weapon.update(dt, this.isCombatAct() && isMoving);
+    const aimBlend = this.isCombatAct() ? this.player.getAimBlend() : 0;
+    this.weapon.update(dt, this.isCombatAct() && isMoving, aimBlend);
+    this.hud.setAiming(aimBlend > 0.35 && !this.weapon.state.reloading);
     this.level.update(worldDt, dt);
     this.level.updateShadowAnchor(
       this.player.position.x,
