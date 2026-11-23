@@ -221,7 +221,7 @@ export class StoryDirector {
     const names: Record<SpeakerId, { name: string; role: string }> = {
       samir: { name: 'САМИР', role: 'НАЁМНИК // ШТУРМ БАШНИ' },
       rodion: { name: 'РОДИОН', role: 'MARAKULIN CORP // ГЛАВА СОВЕТА' },
-      smasher: { name: 'ЛЕВ СМЭШЕР', role: 'ОХРАННЫЙ КИБОРГ // КЛАСС S' },
+      smasher: { name: 'ЭМИР СМЭШЕР', role: 'ОХРАННЫЙ КИБОРГ // КЛАСС S' },
       system: { name: 'MARAKULIN OS', role: 'СИСТЕМА БЕЗОПАСНОСТИ БАШНИ' },
     };
     const evt: SubtitleEvent = {
@@ -421,10 +421,10 @@ export class StoryDirector {
 
     this.boss.beginCombat(0, -133, FLOOR_COUNCIL_Y);
     this.hud.setBossBar(true, 1.0, 'ФАЗА I // АВТОПУШКА И МИКРОРАКЕТЫ');
-    this.hud.setQuest('Сразиться со Львом Смэшером', 'БОСС // ПЕРЕД ЗАЛОМ РОДИОНА');
+    this.hud.setQuest('Сразиться с Эмиром Смэшером', 'БОСС // ПЕРЕД ЗАЛОМ РОДИОНА');
     this.audio.setMusicIntensity('boss');
 
-    this.queueLine('samir', 'Лев Смэшер... Значит, придётся пройти через тебя!', 3.2, true);
+    this.queueLine('samir', 'Эмир Смэшер... Значит, придётся пройти через тебя!', 3.2, true);
   }
 
   private enterSamirDefeated(): void {
@@ -511,14 +511,14 @@ export class StoryDirector {
       this.queueLine('samir', 'Гори в аду, Родион. Я ещё выжгу Маракулин Тавер дотла.', 3.2, true);
       this.queueLine(
         'rodion',
-        'Огонь в глазах — именно за это я тебя и сохраню. Навсегда. Включаю «Душегуб».',
+        'Огонь в глазах — именно за это я и запечатаю тебя в биочип. Навсегда. Включаю «Душегуб».',
         4.3,
       );
     } else {
-      this.queueLine('samir', 'Ты жалкий трус, корпорат. Прятался за спиной Льва Смэшера.', 3.2, true);
+      this.queueLine('samir', 'Ты жалкий трус, корпорат. Прятался за спиной Эмира Смэшера.', 3.2, true);
       this.queueLine(
         'rodion',
-        'Умные люди используют инструменты, Самир. А теперь твоя душа станет моим новым инструментом.',
+        'Умные люди используют инструменты, Самир. А теперь твой конструкт станет моим новым инструментом.',
         4.5,
       );
     }
@@ -531,10 +531,10 @@ export class StoryDirector {
     this.audio.playSoulkillerSurge(this.soulkillerDuration);
     this.hud.setBossBar(false);
     this.hud.setSoulkillerProgress(true, 0);
-    this.hud.setQuest('ПРОТОКОЛ «ДУШЕГУБ» АКТИВЕН', 'КРАЖА ДУШИ // СОЗДАНИЕ ЭНГРАММЫ');
+    this.hud.setQuest('ПРОТОКОЛ «ДУШЕГУБ» АКТИВЕН', 'КРАЖА ДУШИ // СОЗДАНИЕ КОНСТРУКТА');
     this.queueLine(
       'rodion',
-      'Прощай, Самир. Теперь твоя душа принадлежит корпорации Маракулин.',
+      'Прощай, Самир. Теперь ты лишь цифровой конструкт в биочипе корпорации Маракулин.',
       4.8,
       true,
     );
@@ -1191,7 +1191,7 @@ export class StoryDirector {
             this.tableStageTimer = 0;
             this.queueLine(
               'rodion',
-              'Ты пробился через всю Маракулин Тавер ради мести... Но Лев Смэшер принес мне идеальный приз — твоё сознание.',
+              'Ты пробился через всю Маракулин Тавер ради мести... Но Эмир Смэшер принёс мне идеальный приз — твоё сознание.',
               5.0,
               true,
             );

@@ -1103,6 +1103,16 @@ kbd {
   letter-spacing: 0.16em;
   color: #ffffff;
   text-shadow: 0 0 24px rgba(0, 240, 255, 0.5), 2px 2px 0 var(--cp-red);
+  margin-bottom: 4px;
+}
+
+.credits-sequel-hint {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--cp-yellow);
+  text-shadow: 0 0 14px rgba(252, 238, 10, 0.45);
   margin-bottom: 18px;
 }
 

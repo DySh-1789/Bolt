@@ -377,7 +377,7 @@ export class HUD {
       const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
       this.skFill.style.width = `${pct}%`;
       this.skPercent.textContent =
-        pct >= 100 ? 'ЭНГРАММА САМИРА ЗАХВАЧЕНА — 100%' : `ИЗВЛЕЧЕНИЕ ДУШИ: ${pct}%`;
+        pct >= 100 ? 'КОНСТРУКТ САМИРА ЗАХВАЧЕН — 100%' : `ИЗВЛЕЧЕНИЕ ДУШИ: ${pct}%`;
     }
   }
 
