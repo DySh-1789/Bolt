@@ -221,7 +221,7 @@ export class StoryDirector {
     const names: Record<SpeakerId, { name: string; role: string }> = {
       samir: { name: 'САМИР', role: 'НАЁМНИК // ШТУРМ БАШНИ' },
       rodion: { name: 'РОДИОН', role: 'MARAKULIN CORP // ГЛАВА СОВЕТА' },
-      smasher: { name: 'ЭМИР СМЭШЕР', role: 'ОХРАННЫЙ КИБОРГ // КЛАСС S' },
+      smasher: { name: 'РИХАРД СМЭШЕР', role: 'ОХРАННЫЙ КИБОРГ // КЛАСС S' },
       system: { name: 'MARAKULIN OS', role: 'СИСТЕМА БЕЗОПАСНОСТИ БАШНИ' },
     };
     const evt: SubtitleEvent = {
@@ -421,10 +421,10 @@ export class StoryDirector {
 
     this.boss.beginCombat(0, -133, FLOOR_COUNCIL_Y);
     this.hud.setBossBar(true, 1.0, 'ФАЗА I // АВТОПУШКА И МИКРОРАКЕТЫ');
-    this.hud.setQuest('Сразиться с Эмиром Смэшером', 'БОСС // ПЕРЕД ЗАЛОМ РОДИОНА');
+    this.hud.setQuest('Сразиться с Рихардом Смэшером', 'БОСС // ПЕРЕД ЗАЛОМ РОДИОНА');
     this.audio.setMusicIntensity('boss');
 
-    this.queueLine('samir', 'Эмир Смэшер... Значит, придётся пройти через тебя!', 3.2, true);
+    this.queueLine('samir', 'Рихард Смэшер... Значит, придётся пройти через тебя!', 3.2, true);
   }
 
   private enterSamirDefeated(): void {
@@ -515,7 +515,7 @@ export class StoryDirector {
         4.3,
       );
     } else {
-      this.queueLine('samir', 'Ты жалкий трус, корпорат. Прятался за спиной Эмира Смэшера.', 3.2, true);
+      this.queueLine('samir', 'Ты жалкий трус, корпорат. Прятался за спиной Рихарда Смэшера.', 3.2, true);
       this.queueLine(
         'rodion',
         'Умные люди используют инструменты, Самир. А теперь твой конструкт станет моим новым инструментом.',
@@ -1191,7 +1191,7 @@ export class StoryDirector {
             this.tableStageTimer = 0;
             this.queueLine(
               'rodion',
-              'Ты пробился через всю Маракулин Тавер ради мести... Но Эмир Смэшер принёс мне идеальный приз — твоё сознание.',
+              'Ты пробился через всю Маракулин Тавер ради мести... Но Рихард Смэшер принёс мне идеальный приз — твоё сознание.',
               5.0,
               true,
             );
